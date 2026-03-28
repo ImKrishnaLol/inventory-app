@@ -150,7 +150,7 @@ elif page == "🗄️ Database Editor":
     st.divider()
 
     # =========================
-    # 🔍 ADVANCED FILTER
+    # 🔍 ADVANCED FILTER (SMART)
     # =========================
     
     st.subheader("🔍 Filter (SQL-like)")
@@ -160,45 +160,58 @@ elif page == "🗄️ Database Editor":
         col1, col2, col3 = st.columns(3)
     
         column = col1.selectbox("Column", df.columns, key="filter_column")
-        operator = col2.selectbox(
-            "Operator",
-            ["=", "!=", ">", "<", "contains"],
-            key="filter_operator"
-        )
+    
+        # Detect column type
+        is_numeric = pd.api.types.is_numeric_dtype(df[column])
+    
+        # Choose operators based on type
+        if is_numeric:
+            operator = col2.selectbox(
+                "Operator",
+                ["=", "!=", ">", "<"],
+                key="filter_operator"
+            )
+        else:
+            operator = col2.selectbox(
+                "Operator",
+                ["=", "!=", "contains"],
+                key="filter_operator"
+            )
+    
         value = col3.text_input("Value", key="filter_value")
     
         if st.button("Apply Filter", key="filter_button"):
     
             try:
-                if operator == "=":
-                    filtered = df[df[column] == value]
+                if is_numeric:
+                    value = float(value)
     
-                elif operator == "!=":
-                    filtered = df[df[column] != value]
+                    if operator == "=":
+                        filtered = df[df[column] == value]
     
-                elif operator == ">":
-                    filtered = df[df[column].astype(float) > float(value)]
+                    elif operator == "!=":
+                        filtered = df[df[column] != value]
     
-                elif operator == "<":
-                    filtered = df[df[column].astype(float) < float(value)]
+                    elif operator == ">":
+                        filtered = df[df[column] > value]
     
-                elif operator == "contains":
-                    filtered = df[df[column].astype(str).str.contains(value, case=False)]
+                    elif operator == "<":
+                        filtered = df[df[column] < value]
+    
+                else:
+                    if operator == "=":
+                        filtered = df[df[column].astype(str) == value]
+    
+                    elif operator == "!=":
+                        filtered = df[df[column].astype(str) != value]
+    
+                    elif operator == "contains":
+                        filtered = df[df[column].astype(str).str.contains(value, case=False)]
     
                 st.dataframe(filtered, use_container_width=True)
     
+            except ValueError:
+                st.error("Invalid input: Please enter a valid number for this column.")
+    
             except Exception as e:
-                st.error(f"Invalid filter: {e}")
-    # =========================
-    # 🔍 BASIC FILTER (EXTENDABLE)
-    # =========================
-
-    st.subheader("🔍 Filter View")
-
-    if not df.empty:
-        col = st.selectbox("Column", df.columns)
-        value = st.text_input("Value contains")
-
-        if value:
-            filtered = df[df[col].astype(str).str.contains(value, case=False)]
-            st.dataframe(filtered, use_container_width=True)
+                st.error(f"Filter error: {e}")
