@@ -1,7 +1,6 @@
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import psycopg2
-import psycopg2.errors
 
 app = FastAPI()
 
@@ -19,14 +18,23 @@ def get_conn():
     )
 
 # =========================
-# 📦 DATA MODEL
+# 📦 DATA MODEL (UPDATED)
 # =========================
 
 class Item(BaseModel):
     name: str
-    category: str
-    quantity: int
-    threshold: int
+    shop_category: str
+    unit: str
+    unit_factor: int = Field(gt=0)
+
+    irreplacable: bool = False
+
+    current_qty: int = Field(ge=0)
+    ideal_qty: int = Field(ge=0)
+
+    low_stock_ratio: float = Field(ge=0, le=1) = 0.3
+
+    consumption_rate: float | None = Field(default=None, gt=0)
 
 # =========================
 # 🏠 ROOT
@@ -55,10 +63,15 @@ def get_items():
         {
             "id": str(r[0]),
             "name": r[1],
-            "category": r[2],
-            "quantity": r[3],
-            "threshold": r[4],
-            "last_updated": str(r[5])
+            "shop_category": r[2],
+            "unit": r[3],
+            "unit_factor": r[4],
+            "irreplacable": r[5],
+            "current_qty": r[6],
+            "ideal_qty": r[7],
+            "low_stock_ratio": r[8],
+            "consumption_rate": r[9],
+            "last_updated": str(r[10])
         }
         for r in rows
     ]
@@ -75,10 +88,24 @@ def add_item(item: Item):
     try:
         cur.execute(
             """
-            INSERT INTO items (name, category, quantity, threshold)
-            VALUES (%s, %s, %s, %s)
+            INSERT INTO items (
+                name, shop_category, unit, unit_factor,
+                irreplacable, current_qty, ideal_qty,
+                low_stock_ratio, consumption_rate
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
-            (item.name, item.category, item.quantity, item.threshold)
+            (
+                item.name,
+                item.shop_category,
+                item.unit,
+                item.unit_factor,
+                item.irreplacable,
+                item.current_qty,
+                item.ideal_qty,
+                item.low_stock_ratio,
+                item.consumption_rate
+            )
         )
 
         conn.commit()
@@ -107,13 +134,29 @@ def update_item(item_id: str, item: Item):
             """
             UPDATE items
             SET name=%s,
-                category=%s,
-                quantity=%s,
-                threshold=%s,
+                shop_category=%s,
+                unit=%s,
+                unit_factor=%s,
+                irreplacable=%s,
+                current_qty=%s,
+                ideal_qty=%s,
+                low_stock_ratio=%s,
+                consumption_rate=%s,
                 last_updated = NOW()
             WHERE id=%s
             """,
-            (item.name, item.category, item.quantity, item.threshold, item_id)
+            (
+                item.name,
+                item.shop_category,
+                item.unit,
+                item.unit_factor,
+                item.irreplacable,
+                item.current_qty,
+                item.ideal_qty,
+                item.low_stock_ratio,
+                item.consumption_rate,
+                item_id
+            )
         )
 
         if cur.rowcount == 0:
