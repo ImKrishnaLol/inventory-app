@@ -171,7 +171,8 @@ elif page == "🗂️ Groups Manager":
             resp = add_group({"name": new_group_name, "irreplacable": new_group_irreplacable})
             if resp.status_code == 200:
                 st.success(f"Group '{new_group_name}' added!")
-                st.session_state.refresh = True
+                # safely trigger rerun
+                st.experimental_rerun()
             else:
                 st.error(resp.text)
 
@@ -200,10 +201,10 @@ elif page == "🗂️ Groups Manager":
                 resp = add_group_member({"group_id": selected_group_id, "item_id": selected_item_id, "child_group_id": None})
                 if resp.status_code == 200:
                     st.success(f"Item '{selected_item_name}' added to group '{selected_group_name}'")
-                    st.session_state.refresh = True
+                    st.experimental_rerun()
                 else:
                     st.error(resp.text)
-
+        
         # Add Child Group to Group
         elif member_type == "Group" and child_groups_options:
             selected_child_name = st.selectbox("Select Child Group", list(child_groups_options.keys()), key="select_child_group")
@@ -212,7 +213,7 @@ elif page == "🗂️ Groups Manager":
                 resp = add_group_member({"group_id": selected_group_id, "item_id": None, "child_group_id": selected_child_id})
                 if resp.status_code == 200:
                     st.success(f"Group '{selected_child_name}' added to '{selected_group_name}'")
-                    st.session_state.refresh = True
+                    st.experimental_rerun()
                 else:
                     st.error(resp.text)
 
