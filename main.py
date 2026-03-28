@@ -25,14 +25,15 @@ class Item(BaseModel):
     name: str
     shop_category: str
     unit: str
-    unit_factor: int = Field(gt=0)
+
+    unit_factor: int = Field(..., gt=0)
 
     irreplacable: bool = False
 
-    current_qty: int = Field(ge=0)
-    ideal_qty: int = Field(ge=0)
+    current_qty: int = Field(0, ge=0)
+    ideal_qty: int = Field(..., ge=0)
 
-    low_stock_ratio: float = Field(ge=0, le=1) = 0.3
+    low_stock_ratio: float = Field(0.3, ge=0, le=1)
 
     consumption_rate: float | None = Field(default=None, gt=0)
 
