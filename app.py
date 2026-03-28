@@ -5,107 +5,124 @@ import time
 
 API = "https://inventory-app-mi1m.onrender.com"
 
-st.set_page_config(page_title="Home Inventory", layout="wide")
+st.set_page_config(page_title="Inventory System", layout="wide")
 
-st.title("🏠 Home Inventory")
+# =========================
+# 🔧 UTIL FUNCTIONS
+# =========================
 
-# 🔄 Wake up backend (Render sleep fix)
-with st.spinner("Connecting to server..."):
+def wake_server():
     try:
         requests.get(f"{API}/items", timeout=5)
     except:
         time.sleep(5)
 
-# 🔄 Fetch data
 def fetch_items():
-    try:
-        response = requests.get(f"{API}/items")
-        if response.status_code == 200:
-            return pd.DataFrame(response.json())
-        else:
-            st.error("Failed to fetch data")
-            return pd.DataFrame()
-    except:
-        st.error("Server not responding")
+    response = requests.get(f"{API}/items")
+    if response.status_code == 200:
+        return pd.DataFrame(response.json())
+    else:
+        st.error("Failed to fetch data")
         return pd.DataFrame()
 
-df = fetch_items()
+def update_item(name, quantity):
+    return requests.post(f"{API}/update/{name}?quantity={quantity}")
 
-# 🔍 SEARCH
-search = st.text_input("🔍 Search item")
+def add_item(data):
+    return requests.post(f"{API}/add", json=data)
 
-if not df.empty and search:
-    df = df[df["name"].str.contains(search, case=False)]
+# =========================
+# 🧭 NAVIGATION
+# =========================
 
-# ⚠️ Highlight low stock
-def highlight_low_stock(row):
-    return ['background-color: #ffcccc' if row.quantity < row.threshold else '' for _ in row]
+st.sidebar.title("Navigation")
 
-st.subheader("📦 Inventory")
+page = st.sidebar.radio("Go to", [
+    "🏠 Main Menu",
+    "🗄️ Database Editor"
+])
 
-if not df.empty:
-    st.dataframe(df.style.apply(highlight_low_stock, axis=1), use_container_width=True)
-else:
-    st.warning("No items found")
+# =========================
+# 🏠 MAIN MENU (EMPTY HUB)
+# =========================
 
-st.divider()
+if page == "🏠 Main Menu":
+    st.title("🏠 Inventory System")
 
-# ➕ ADD ITEM
-st.subheader("➕ Add Item")
+    st.info("This is your control hub.\n\nMore modules will be added here.")
 
-with st.form("add_form"):
-    col1, col2, col3, col4 = st.columns(4)
+# =========================
+# 🗄️ DATABASE EDITOR
+# =========================
 
-    name = col1.text_input("Name")
-    category = col2.text_input("Category")
-    quantity = col3.number_input("Quantity", min_value=0)
-    threshold = col4.number_input("Threshold", min_value=0)
+elif page == "🗄️ Database Editor":
 
-    submitted = st.form_submit_button("Add Item")
+    st.title("🗄️ Database Editor")
 
-    if submitted:
-        response = requests.post(f"{API}/add", json={
-            "name": name,
-            "category": category,
-            "quantity": quantity,
-            "threshold": threshold
-        })
+    wake_server()
 
-        if response.status_code == 200:
-            st.success("Item added!")
-            st.rerun()
-        else:
-            st.error(response.text)
+    df = fetch_items()
 
-# 🔄 UPDATE ITEM
-st.subheader("🔄 Update Quantity")
-
-if not df.empty:
-    item_names = df["name"].tolist()
-
-    col1, col2 = st.columns(2)
-
-    selected_item = col1.selectbox("Select Item", item_names)
-    new_qty = col2.number_input("New Quantity", min_value=0)
-
-    if st.button("Update Quantity"):
-        response = requests.post(f"{API}/update/{selected_item}?quantity={new_qty}")
-
-        if response.status_code == 200:
-            st.success("Updated!")
-            st.rerun()
-        else:
-            st.error(response.text)
-
-st.divider()
-
-# ⚠️ LOW STOCK
-st.subheader("⚠️ Low Stock")
-
-if not df.empty:
-    low = df[df["quantity"] < df["threshold"]]
-
-    if not low.empty:
-        st.dataframe(low, use_container_width=True)
+    if df.empty:
+        st.warning("No data found.")
     else:
-        st.success("All items are sufficiently stocked!")
+        st.subheader("📊 Live Table")
+
+        # Editable table
+        edited_df = st.data_editor(
+            df,
+            num_rows="dynamic",
+            use_container_width=True
+        )
+
+        st.divider()
+
+        # =========================
+        # 🔄 SAVE CHANGES
+        # =========================
+
+        if st.button("💾 Save Changes"):
+            changes_made = False
+
+            for i, row in edited_df.iterrows():
+
+                # Existing item → update
+                if i < len(df):
+                    original = df.iloc[i]
+
+                    if row["quantity"] != original["quantity"]:
+                        update_item(row["name"], int(row["quantity"]))
+                        changes_made = True
+
+                # New row → add item
+                else:
+                    if row["name"]:
+                        add_item({
+                            "name": row["name"],
+                            "category": row.get("category", ""),
+                            "quantity": int(row.get("quantity", 0)),
+                            "threshold": int(row.get("threshold", 0))
+                        })
+                        changes_made = True
+
+            if changes_made:
+                st.success("Changes saved!")
+                st.rerun()
+            else:
+                st.info("No changes detected.")
+
+    st.divider()
+
+    # =========================
+    # 🔍 BASIC FILTER (EXTENDABLE)
+    # =========================
+
+    st.subheader("🔍 Filter View")
+
+    if not df.empty:
+        col = st.selectbox("Column", df.columns)
+        value = st.text_input("Value contains")
+
+        if value:
+            filtered = df[df[col].astype(str).str.contains(value, case=False)]
+            st.dataframe(filtered, use_container_width=True)
