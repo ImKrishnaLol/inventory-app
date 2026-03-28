@@ -152,33 +152,41 @@ elif page == "🗄️ Database Editor":
     # =========================
     # 🔍 ADVANCED FILTER
     # =========================
-
+    
     st.subheader("🔍 Filter (SQL-like)")
-
+    
     if not df.empty:
-
+    
         col1, col2, col3 = st.columns(3)
-
-        col = st.selectbox("Column", df.columns, key="filter_column")
-        operator = st.selectbox("Operator", ["=", "!=", ">", "<", "contains"], key="filter_operator")
-        value = st.text_input("Value", key="filter_value")
-
-        if st.button("Apply Filter"):
-
+    
+        column = col1.selectbox("Column", df.columns, key="filter_column")
+        operator = col2.selectbox(
+            "Operator",
+            ["=", "!=", ">", "<", "contains"],
+            key="filter_operator"
+        )
+        value = col3.text_input("Value", key="filter_value")
+    
+        if st.button("Apply Filter", key="filter_button"):
+    
             try:
                 if operator == "=":
                     filtered = df[df[column] == value]
+    
                 elif operator == "!=":
                     filtered = df[df[column] != value]
+    
                 elif operator == ">":
                     filtered = df[df[column].astype(float) > float(value)]
+    
                 elif operator == "<":
                     filtered = df[df[column].astype(float) < float(value)]
+    
                 elif operator == "contains":
                     filtered = df[df[column].astype(str).str.contains(value, case=False)]
-
+    
                 st.dataframe(filtered, use_container_width=True)
-
+    
             except Exception as e:
                 st.error(f"Invalid filter: {e}")
     # =========================
