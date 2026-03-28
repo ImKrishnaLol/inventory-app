@@ -159,9 +159,9 @@ elif page == "🗄️ Database Editor":
 
         col1, col2, col3 = st.columns(3)
 
-        column = col1.selectbox("Column", df.columns)
-        operator = col2.selectbox("Operator", ["=", "!=", ">", "<", "contains"])
-        value = col3.text_input("Value")
+        col = st.selectbox("Column", df.columns, key="filter_column")
+        operator = st.selectbox("Operator", ["=", "!=", ">", "<", "contains"], key="filter_operator")
+        value = st.text_input("Value", key="filter_value")
 
         if st.button("Apply Filter"):
 
