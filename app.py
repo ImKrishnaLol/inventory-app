@@ -1,4 +1,4 @@
-# ===== Fixed Streamlit Frontend =====
+# ===== Streamlit Frontend with Live Updates =====
 import streamlit as st
 import requests
 import pandas as pd
@@ -11,7 +11,6 @@ st.set_page_config(page_title="Inventory System", layout="wide")
 # =========================
 # 🔧 UTIL FUNCTIONS
 # =========================
-
 def wake_server():
     try:
         requests.get(f"{API}/items", timeout=5)
@@ -49,10 +48,17 @@ def fetch_group_members(group_id):
     return response.json() if response.status_code == 200 else []
 
 # =========================
-# 🧭 SESSION STATE REFRESH FLAG
+# 🧭 SESSION STATE FLAGS
 # =========================
-if "refresh" not in st.session_state:
-    st.session_state.refresh = False
+if "msg" not in st.session_state:
+    st.session_state.msg = None
+if "rerun_needed" not in st.session_state:
+    st.session_state.rerun_needed = False
+
+# Function to set a message and trigger rerun safely
+def show_message(message):
+    st.session_state.msg = message
+    st.session_state.rerun_needed = True
 
 # =========================
 # 🧭 NAVIGATION
@@ -78,6 +84,7 @@ elif page == "🗄️ Database Editor":
     st.title("🗄️ Database Editor")
     wake_server()
     df = fetch_items()
+
     if df.empty:
         st.warning("No data found.")
     else:
@@ -85,6 +92,7 @@ elif page == "🗄️ Database Editor":
         edited_df = st.data_editor(df, num_rows="dynamic", use_container_width=True, key="editor")
 
         st.divider()
+
         # ---------- DELETE ITEM ----------
         st.subheader("🗑️ Delete Item")
         item_to_delete = st.selectbox("Select item", df["name"], key="delete_select")
@@ -92,16 +100,17 @@ elif page == "🗄️ Database Editor":
             item_id = df[df["name"] == item_to_delete]["id"].values[0]
             resp = delete_item(item_id)
             if resp.status_code == 200:
-                st.success("Deleted!")
-                st.session_state.refresh = True
+                show_message("Item deleted!")
             else:
                 st.error(resp.text)
 
         st.divider()
+
         # ---------- SAVE CHANGES ----------
         if st.button("💾 Save Changes", key="save_btn"):
             changes_made = False
             for i, row in edited_df.iterrows():
+                # Existing rows
                 if i < len(df):
                     original = df.iloc[i]
                     if not row.equals(original):
@@ -121,6 +130,7 @@ elif page == "🗄️ Database Editor":
                             changes_made = True
                         else:
                             st.error(resp.text)
+                # New rows
                 else:
                     if row["name"]:
                         payload = {
@@ -140,8 +150,7 @@ elif page == "🗄️ Database Editor":
                         else:
                             st.error(resp.text)
             if changes_made:
-                st.success("Changes saved!")
-                st.session_state.refresh = True
+                show_message("Changes saved!")
             else:
                 st.info("No changes detected.")
 
@@ -162,6 +171,7 @@ elif page == "🗂️ Groups Manager":
             st.markdown(f"- **{g['name']}** (Irreplacable: {g['irreplacable']})")
 
     st.divider()
+
     # ---------- ADD NEW GROUP ----------
     st.subheader("➕ Add Group")
     new_group_name = st.text_input("Group Name", key="new_group_name")
@@ -170,9 +180,7 @@ elif page == "🗂️ Groups Manager":
         if new_group_name:
             resp = add_group({"name": new_group_name, "irreplacable": new_group_irreplacable})
             if resp.status_code == 200:
-                st.success(f"Group '{new_group_name}' added!")
-                # safely trigger rerun
-                st.experimental_rerun()
+                show_message(f"Group '{new_group_name}' added!")
             else:
                 st.error(resp.text)
 
@@ -200,11 +208,10 @@ elif page == "🗂️ Groups Manager":
             if st.button("Add Item to Group", key="add_item_member_btn"):
                 resp = add_group_member({"group_id": selected_group_id, "item_id": selected_item_id, "child_group_id": None})
                 if resp.status_code == 200:
-                    st.success(f"Item '{selected_item_name}' added to group '{selected_group_name}'")
-                    st.experimental_rerun()
+                    show_message(f"Item '{selected_item_name}' added to group '{selected_group_name}'")
                 else:
                     st.error(resp.text)
-        
+
         # Add Child Group to Group
         elif member_type == "Group" and child_groups_options:
             selected_child_name = st.selectbox("Select Child Group", list(child_groups_options.keys()), key="select_child_group")
@@ -212,12 +219,12 @@ elif page == "🗂️ Groups Manager":
             if st.button("Add Group to Group", key="add_group_member_btn"):
                 resp = add_group_member({"group_id": selected_group_id, "item_id": None, "child_group_id": selected_child_id})
                 if resp.status_code == 200:
-                    st.success(f"Group '{selected_child_name}' added to '{selected_group_name}'")
-                    st.experimental_rerun()
+                    show_message(f"Group '{selected_child_name}' added to '{selected_group_name}'")
                 else:
                     st.error(resp.text)
 
         st.divider()
+
         # ---------- VIEW & REMOVE MEMBERS ----------
         st.subheader("📄 Group Members")
         members = fetch_group_members(selected_group_id)
@@ -231,8 +238,16 @@ elif page == "🗂️ Groups Manager":
                 if col2.button("Remove", key=f"remove_member_{m['id']}"):
                     resp = remove_group_member(m["id"])
                     if resp.status_code == 200:
-                        st.success(f"Member '{name}' removed")
-                        st.session_state.refresh = True
+                        show_message(f"Member '{name}' removed")
                     else:
                         st.error(resp.text)
 
+# =========================
+# 🔄 HANDLE RERUN
+# =========================
+if st.session_state.rerun_needed:
+    st.session_state.rerun_needed = False
+    st.experimental_rerun()
+if st.session_state.msg:
+    st.success(st.session_state.msg)
+    st.session_state.msg = None
