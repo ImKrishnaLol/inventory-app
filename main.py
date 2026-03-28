@@ -4,13 +4,15 @@ import psycopg2
 
 app = FastAPI()
 
-conn = psycopg2.connect(
-    host="aws-1-ap-southeast-1.pooler.supabase.com",
-    database="postgres",
-    user="postgres.nqbjmarcjrzfkmtfbqsd",
-    password="KG12.,kg120608",
-    port="6543"
-)
+# ✅ Create connection function instead of global connection
+def get_conn():
+    return psycopg2.connect(
+        host="aws-1-ap-southeast-1.pooler.supabase.com",
+        database="postgres",
+        user="postgres.nqbjmarcjrzfkmtfbqsd",
+        password="KG12.,kg120608",
+        port="6543"
+    )
 
 class Item(BaseModel):
     name: str
@@ -24,10 +26,15 @@ def home():
 
 @app.get("/items")
 def get_items():
+    # ✅ Create fresh connection per request
+    conn = get_conn()
     cur = conn.cursor()
+
     cur.execute("SELECT * FROM items")
     rows = cur.fetchall()
+
     cur.close()
+    conn.close()   # ✅ VERY IMPORTANT
 
     return [
         {
