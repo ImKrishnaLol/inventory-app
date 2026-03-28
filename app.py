@@ -236,9 +236,3 @@ elif page == "🗂️ Groups Manager":
                     else:
                         st.error(resp.text)
 
-# =========================
-# 🔄 REFRESH HANDLER
-# =========================
-if st.session_state.refresh:
-    st.session_state.refresh = False
-    st.experimental_rerun()
