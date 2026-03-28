@@ -60,7 +60,6 @@ elif page == "🗄️ Database Editor":
     st.title("🗄️ Database Editor")
 
     wake_server()
-
     df = fetch_items()
 
     if df.empty:
@@ -68,31 +67,50 @@ elif page == "🗄️ Database Editor":
     else:
         st.subheader("📊 Live Table")
 
-        # Editable table
         edited_df = st.data_editor(
             df,
             num_rows="dynamic",
-            use_container_width=True
+            use_container_width=True,
+            key="editor"
         )
 
         st.divider()
 
         # =========================
-        # 🔄 SAVE CHANGES
+        # 🗑️ DELETE ROW
+        # =========================
+
+        st.subheader("🗑️ Delete Item")
+
+        item_to_delete = st.selectbox("Select item to delete", df["name"])
+
+        if st.button("Delete"):
+            item_id = df[df["name"] == item_to_delete]["id"].values[0]
+
+            response = requests.delete(f"{API}/delete-item/{item_id}")
+
+            if response.status_code == 200:
+                st.success("Deleted!")
+                st.rerun()
+            else:
+                st.error(response.text)
+
+        st.divider()
+
+        # =========================
+        # 💾 SAVE CHANGES
         # =========================
 
         if st.button("💾 Save Changes"):
             changes_made = False
-        
+
             for i, row in edited_df.iterrows():
-        
+
                 # Existing rows
                 if i < len(df):
                     original = df.iloc[i]
-        
-                    # 🔥 Detect ANY change
+
                     if not row.equals(original):
-        
                         response = requests.put(
                             f"{API}/update-item/{row['id']}",
                             json={
@@ -102,12 +120,12 @@ elif page == "🗄️ Database Editor":
                                 "threshold": int(row["threshold"])
                             }
                         )
-        
+
                         if response.status_code == 200:
                             changes_made = True
                         else:
                             st.error(response.text)
-        
+
                 # New rows
                 else:
                     if row["name"]:
@@ -117,18 +135,52 @@ elif page == "🗄️ Database Editor":
                             "quantity": int(row.get("quantity", 0)),
                             "threshold": int(row.get("threshold", 0))
                         })
-        
+
                         if response.status_code == 200:
                             changes_made = True
                         else:
                             st.error(response.text)
-        
+
             if changes_made:
                 st.success("Changes saved!")
                 st.rerun()
             else:
                 st.info("No changes detected.")
 
+    st.divider()
+
+    # =========================
+    # 🔍 ADVANCED FILTER
+    # =========================
+
+    st.subheader("🔍 Filter (SQL-like)")
+
+    if not df.empty:
+
+        col1, col2, col3 = st.columns(3)
+
+        column = col1.selectbox("Column", df.columns)
+        operator = col2.selectbox("Operator", ["=", "!=", ">", "<", "contains"])
+        value = col3.text_input("Value")
+
+        if st.button("Apply Filter"):
+
+            try:
+                if operator == "=":
+                    filtered = df[df[column] == value]
+                elif operator == "!=":
+                    filtered = df[df[column] != value]
+                elif operator == ">":
+                    filtered = df[df[column].astype(float) > float(value)]
+                elif operator == "<":
+                    filtered = df[df[column].astype(float) < float(value)]
+                elif operator == "contains":
+                    filtered = df[df[column].astype(str).str.contains(value, case=False)]
+
+                st.dataframe(filtered, use_container_width=True)
+
+            except Exception as e:
+                st.error(f"Invalid filter: {e}")
     # =========================
     # 🔍 BASIC FILTER (EXTENDABLE)
     # =========================
