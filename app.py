@@ -82,52 +82,52 @@ elif page == "🗄️ Database Editor":
         # =========================
 
         if st.button("💾 Save Changes"):
-        changes_made = False
-    
-        for i, row in edited_df.iterrows():
-    
-            # Existing rows
-            if i < len(df):
-                original = df.iloc[i]
-    
-                # 🔥 Detect ANY change
-                if not row.equals(original):
-    
-                    response = requests.put(
-                        f"{API}/update-item/{row['id']}",
-                        json={
+            changes_made = False
+        
+            for i, row in edited_df.iterrows():
+        
+                # Existing rows
+                if i < len(df):
+                    original = df.iloc[i]
+        
+                    # 🔥 Detect ANY change
+                    if not row.equals(original):
+        
+                        response = requests.put(
+                            f"{API}/update-item/{row['id']}",
+                            json={
+                                "name": row["name"],
+                                "category": row["category"],
+                                "quantity": int(row["quantity"]),
+                                "threshold": int(row["threshold"])
+                            }
+                        )
+        
+                        if response.status_code == 200:
+                            changes_made = True
+                        else:
+                            st.error(response.text)
+        
+                # New rows
+                else:
+                    if row["name"]:
+                        response = requests.post(f"{API}/add", json={
                             "name": row["name"],
-                            "category": row["category"],
-                            "quantity": int(row["quantity"]),
-                            "threshold": int(row["threshold"])
-                        }
-                    )
-    
-                    if response.status_code == 200:
-                        changes_made = True
-                    else:
-                        st.error(response.text)
-    
-            # New rows
+                            "category": row.get("category", ""),
+                            "quantity": int(row.get("quantity", 0)),
+                            "threshold": int(row.get("threshold", 0))
+                        })
+        
+                        if response.status_code == 200:
+                            changes_made = True
+                        else:
+                            st.error(response.text)
+        
+            if changes_made:
+                st.success("Changes saved!")
+                st.rerun()
             else:
-                if row["name"]:
-                    response = requests.post(f"{API}/add", json={
-                        "name": row["name"],
-                        "category": row.get("category", ""),
-                        "quantity": int(row.get("quantity", 0)),
-                        "threshold": int(row.get("threshold", 0))
-                    })
-    
-                    if response.status_code == 200:
-                        changes_made = True
-                    else:
-                        st.error(response.text)
-    
-        if changes_made:
-            st.success("Changes saved!")
-            st.rerun()
-        else:
-            st.info("No changes detected.")
+                st.info("No changes detected.")
 
     # =========================
     # 🔍 BASIC FILTER (EXTENDABLE)
