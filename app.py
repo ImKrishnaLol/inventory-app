@@ -225,3 +225,119 @@ elif page == "🗄️ Database Editor":
 
             except Exception as e:
                 st.error(f"Filter error: {e}")
+# =========================
+# 🗂️ GROUPS MANAGER
+# =========================
+
+elif page == "🗂️ Groups Manager":
+
+    st.title("🗂️ Groups Manager")
+
+    wake_server()
+
+    # ---------- Fetch Groups ----------
+    groups_resp = requests.get(f"{API}/groups")
+    groups = groups_resp.json() if groups_resp.status_code == 200 else []
+
+    st.subheader("📋 Existing Groups")
+
+    if not groups:
+        st.info("No groups found.")
+    else:
+        for g in groups:
+            st.markdown(f"- **{g['name']}** (Irreplacable: {g['irreplacable']})")
+
+    st.divider()
+
+    # ---------- Add New Group ----------
+    st.subheader("➕ Add Group")
+
+    new_group_name = st.text_input("Group Name", key="new_group_name")
+    new_group_irreplacable = st.checkbox("Irreplacable", key="new_group_irreplacable")
+
+    if st.button("Add Group"):
+        if new_group_name:
+            resp = requests.post(f"{API}/add-group", json={
+                "name": new_group_name,
+                "irreplacable": new_group_irreplacable
+            })
+            if resp.status_code == 200:
+                st.success(f"Group '{new_group_name}' added!")
+                st.rerun()
+            else:
+                st.error(resp.text)
+
+    st.divider()
+
+    # ---------- Manage Members ----------
+    st.subheader("🔗 Add/Remove Members")
+
+    if groups:
+        group_options = {g['name']: g['id'] for g in groups}
+        selected_group_name = st.selectbox("Select Group", list(group_options.keys()))
+        selected_group_id = group_options[selected_group_name]
+
+        # Fetch items
+        df_items = fetch_items()
+        item_options = {row["name"]: row["id"] for row in df_items.to_dict(orient="records")} if not df_items.empty else {}
+
+        # Fetch child groups (nested)
+        child_groups_options = {g['name']: g['id'] for g in groups if g['id'] != selected_group_id}
+
+        st.markdown("**Add a Member**")
+        member_type = st.radio("Type", ["Item", "Group"], horizontal=True, key="member_type")
+
+        if member_type == "Item" and item_options:
+            selected_item_name = st.selectbox("Select Item", list(item_options.keys()))
+            selected_item_id = item_options[selected_item_name]
+
+            if st.button("Add Item to Group"):
+                resp = requests.post(f"{API}/add-member", json={
+                    "group_id": selected_group_id,
+                    "item_id": selected_item_id,
+                    "child_group_id": None
+                })
+                if resp.status_code == 200:
+                    st.success(f"Item '{selected_item_name}' added to group '{selected_group_name}'")
+                    st.rerun()
+                else:
+                    st.error(resp.text)
+
+        elif member_type == "Group" and child_groups_options:
+            selected_child_name = st.selectbox("Select Child Group", list(child_groups_options.keys()))
+            selected_child_id = child_groups_options[selected_child_name]
+
+            if st.button("Add Group to Group"):
+                resp = requests.post(f"{API}/add-member", json={
+                    "group_id": selected_group_id,
+                    "item_id": None,
+                    "child_group_id": selected_child_id
+                })
+                if resp.status_code == 200:
+                    st.success(f"Group '{selected_child_name}' added to '{selected_group_name}'")
+                    st.rerun()
+                else:
+                    st.error(resp.text)
+
+        st.divider()
+
+        # ---------- View & Remove Members ----------
+        st.subheader("📄 Group Members")
+
+        members_resp = requests.get(f"{API}/group-members/{selected_group_id}")
+        members = members_resp.json() if members_resp.status_code == 200 else []
+
+        if not members:
+            st.info("No members in this group.")
+        else:
+            for m in members:
+                name = m["item_name"] if m["item_name"] else f"[Group] {m['group_name']}"
+                col1, col2 = st.columns([3,1])
+                col1.write(name)
+                if col2.button("Remove", key=f"remove_{m['id']}"):
+                    resp = requests.delete(f"{API}/remove-member/{m['id']}")
+                    if resp.status_code == 200:
+                        st.success(f"Member '{name}' removed")
+                        st.rerun()
+                    else:
+                        st.error(resp.text)
