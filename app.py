@@ -1,3 +1,4 @@
+# ===== Fixed Streamlit Frontend =====
 import streamlit as st
 import requests
 import pandas as pd
@@ -19,11 +20,7 @@ def wake_server():
 
 def fetch_items():
     response = requests.get(f"{API}/items")
-    if response.status_code == 200:
-        return pd.DataFrame(response.json())
-    else:
-        st.error("Failed to fetch items data")
-        return pd.DataFrame()
+    return pd.DataFrame(response.json()) if response.status_code == 200 else pd.DataFrame()
 
 def fetch_groups():
     response = requests.get(f"{API}/groups")
@@ -52,9 +49,14 @@ def fetch_group_members(group_id):
     return response.json() if response.status_code == 200 else []
 
 # =========================
+# 🧭 SESSION STATE REFRESH FLAG
+# =========================
+if "refresh" not in st.session_state:
+    st.session_state.refresh = False
+
+# =========================
 # 🧭 NAVIGATION
 # =========================
-
 st.sidebar.title("Navigation")
 page = st.sidebar.radio("Go to", [
     "🏠 Main Menu",
@@ -65,7 +67,6 @@ page = st.sidebar.radio("Go to", [
 # =========================
 # 🏠 MAIN MENU
 # =========================
-
 if page == "🏠 Main Menu":
     st.title("🏠 Inventory System")
     st.info("This is the control hub. Modules coming soon!")
@@ -73,48 +74,34 @@ if page == "🏠 Main Menu":
 # =========================
 # 🗄️ DATABASE EDITOR
 # =========================
-
 elif page == "🗄️ Database Editor":
     st.title("🗄️ Database Editor")
     wake_server()
     df = fetch_items()
-
     if df.empty:
         st.warning("No data found.")
     else:
         st.subheader("📊 Live Table")
-        edited_df = st.data_editor(
-            df,
-            num_rows="dynamic",
-            use_container_width=True,
-            key="editor"
-        )
+        edited_df = st.data_editor(df, num_rows="dynamic", use_container_width=True, key="editor")
 
         st.divider()
-
         # ---------- DELETE ITEM ----------
         st.subheader("🗑️ Delete Item")
-        item_to_delete = st.selectbox(
-            "Select item",
-            df["name"],
-            key="delete_select"
-        )
+        item_to_delete = st.selectbox("Select item", df["name"], key="delete_select")
         if st.button("Delete", key="delete_btn"):
             item_id = df[df["name"] == item_to_delete]["id"].values[0]
-            response = delete_item(item_id)
-            if response.status_code == 200:
+            resp = delete_item(item_id)
+            if resp.status_code == 200:
                 st.success("Deleted!")
-                st.experimental_rerun()
+                st.session_state.refresh = True
             else:
-                st.error(response.text)
+                st.error(resp.text)
 
         st.divider()
-
         # ---------- SAVE CHANGES ----------
         if st.button("💾 Save Changes", key="save_btn"):
             changes_made = False
             for i, row in edited_df.iterrows():
-                # Existing rows
                 if i < len(df):
                     original = df.iloc[i]
                     if not row.equals(original):
@@ -127,18 +114,13 @@ elif page == "🗄️ Database Editor":
                             "current_qty": int(row["current_qty"]),
                             "ideal_qty": int(row["ideal_qty"]),
                             "low_stock_ratio": float(row["low_stock_ratio"]),
-                            "consumption_rate": (
-                                float(row["consumption_rate"])
-                                if pd.notna(row["consumption_rate"])
-                                else None
-                            )
+                            "consumption_rate": float(row["consumption_rate"]) if pd.notna(row["consumption_rate"]) else None
                         }
-                        response = update_item(row["id"], payload)
-                        if response.status_code == 200:
+                        resp = update_item(row["id"], payload)
+                        if resp.status_code == 200:
                             changes_made = True
                         else:
-                            st.error(response.text)
-                # New rows
+                            st.error(resp.text)
                 else:
                     if row["name"]:
                         payload = {
@@ -150,62 +132,22 @@ elif page == "🗄️ Database Editor":
                             "current_qty": int(row.get("current_qty", 0)),
                             "ideal_qty": int(row.get("ideal_qty", 0)),
                             "low_stock_ratio": float(row.get("low_stock_ratio", 0.3)),
-                            "consumption_rate": (
-                                float(row.get("consumption_rate"))
-                                if pd.notna(row.get("consumption_rate"))
-                                else None
-                            )
+                            "consumption_rate": float(row.get("consumption_rate")) if pd.notna(row.get("consumption_rate")) else None
                         }
-                        response = add_item(payload)
-                        if response.status_code == 200:
+                        resp = add_item(payload)
+                        if resp.status_code == 200:
                             changes_made = True
                         else:
-                            st.error(response.text)
+                            st.error(resp.text)
             if changes_made:
                 st.success("Changes saved!")
-                st.experimental_rerun()
+                st.session_state.refresh = True
             else:
                 st.info("No changes detected.")
-
-        st.divider()
-
-        # ---------- SMART FILTER ----------
-        st.subheader("🔍 Filter (SQL-like)")
-        col1, col2, col3 = st.columns(3)
-        column = col1.selectbox("Column", df.columns, key="filter_column")
-        is_numeric = pd.api.types.is_numeric_dtype(df[column])
-        if is_numeric:
-            operator = col2.selectbox("Operator", ["=", "!=", ">", "<"], key="filter_op")
-        else:
-            operator = col2.selectbox("Operator", ["=", "!=", "contains"], key="filter_op")
-        value = col3.text_input("Value", key="filter_val")
-        if st.button("Apply Filter", key="filter_btn"):
-            try:
-                if is_numeric:
-                    value = float(value)
-                    if operator == "=":
-                        filtered = df[df[column] == value]
-                    elif operator == "!=":
-                        filtered = df[df[column] != value]
-                    elif operator == ">":
-                        filtered = df[df[column] > value]
-                    elif operator == "<":
-                        filtered = df[df[column] < value]
-                else:
-                    if operator == "=":
-                        filtered = df[df[column].astype(str) == value]
-                    elif operator == "!=":
-                        filtered = df[df[column].astype(str) != value]
-                    elif operator == "contains":
-                        filtered = df[df[column].astype(str).str.contains(value, case=False)]
-                st.dataframe(filtered, use_container_width=True)
-            except Exception as e:
-                st.error(f"Filter error: {e}")
 
 # =========================
 # 🗂️ GROUPS MANAGER
 # =========================
-
 elif page == "🗂️ Groups Manager":
     st.title("🗂️ Groups Manager")
     wake_server()
@@ -220,26 +162,20 @@ elif page == "🗂️ Groups Manager":
             st.markdown(f"- **{g['name']}** (Irreplacable: {g['irreplacable']})")
 
     st.divider()
-
     # ---------- ADD NEW GROUP ----------
     st.subheader("➕ Add Group")
     new_group_name = st.text_input("Group Name", key="new_group_name")
     new_group_irreplacable = st.checkbox("Irreplacable", key="new_group_irreplacable")
-    if st.button("Add Group", key="add_group_btn"):
+    if st.button("Add Group"):
         if new_group_name:
-            resp = add_group({
-                "name": new_group_name,
-                "irreplacable": new_group_irreplacable
-            })
+            resp = add_group({"name": new_group_name, "irreplacable": new_group_irreplacable})
             if resp.status_code == 200:
                 st.success(f"Group '{new_group_name}' added!")
-                st.experimental_rerun()
+                st.session_state.refresh = True
             else:
                 st.error(resp.text)
 
-    st.divider()
-
-    # ---------- MANAGE MEMBERS ----------
+    # ---------- ADD/REMOVE MEMBERS ----------
     st.subheader("🔗 Add/Remove Members")
     if groups:
         group_options = {g['name']: g['id'] for g in groups}
@@ -255,37 +191,32 @@ elif page == "🗂️ Groups Manager":
 
         st.markdown("**Add a Member**")
         member_type = st.radio("Type", ["Item", "Group"], horizontal=True, key="member_type")
+
+        # Add Item to Group
         if member_type == "Item" and item_options:
             selected_item_name = st.selectbox("Select Item", list(item_options.keys()), key="select_item")
             selected_item_id = item_options[selected_item_name]
             if st.button("Add Item to Group", key="add_item_member_btn"):
-                resp = add_group_member({
-                    "group_id": selected_group_id,
-                    "item_id": selected_item_id,
-                    "child_group_id": None
-                })
+                resp = add_group_member({"group_id": selected_group_id, "item_id": selected_item_id, "child_group_id": None})
                 if resp.status_code == 200:
                     st.success(f"Item '{selected_item_name}' added to group '{selected_group_name}'")
-                    st.experimental_rerun()
+                    st.session_state.refresh = True
                 else:
                     st.error(resp.text)
+
+        # Add Child Group to Group
         elif member_type == "Group" and child_groups_options:
             selected_child_name = st.selectbox("Select Child Group", list(child_groups_options.keys()), key="select_child_group")
             selected_child_id = child_groups_options[selected_child_name]
             if st.button("Add Group to Group", key="add_group_member_btn"):
-                resp = add_group_member({
-                    "group_id": selected_group_id,
-                    "item_id": None,
-                    "child_group_id": selected_child_id
-                })
+                resp = add_group_member({"group_id": selected_group_id, "item_id": None, "child_group_id": selected_child_id})
                 if resp.status_code == 200:
                     st.success(f"Group '{selected_child_name}' added to '{selected_group_name}'")
-                    st.experimental_rerun()
+                    st.session_state.refresh = True
                 else:
                     st.error(resp.text)
 
         st.divider()
-
         # ---------- VIEW & REMOVE MEMBERS ----------
         st.subheader("📄 Group Members")
         members = fetch_group_members(selected_group_id)
@@ -300,6 +231,13 @@ elif page == "🗂️ Groups Manager":
                     resp = remove_group_member(m["id"])
                     if resp.status_code == 200:
                         st.success(f"Member '{name}' removed")
-                        st.experimental_rerun()
+                        st.session_state.refresh = True
                     else:
                         st.error(resp.text)
+
+# =========================
+# 🔄 REFRESH HANDLER
+# =========================
+if st.session_state.refresh:
+    st.session_state.refresh = False
+    st.experimental_rerun()
