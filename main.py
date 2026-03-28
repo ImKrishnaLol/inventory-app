@@ -37,6 +37,14 @@ class Item(BaseModel):
 
     consumption_rate: float | None = Field(default=None, gt=0)
 
+class Group(BaseModel):
+    name: str
+    irreplacable: bool = False
+
+class GroupMember(BaseModel):
+    group_id: str
+    item_id: str | None = None
+    child_group_id: str | None = None
 # =========================
 # 🏠 ROOT
 # =========================
