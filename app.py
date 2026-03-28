@@ -42,7 +42,8 @@ st.sidebar.title("Navigation")
 
 page = st.sidebar.radio("Go to", [
     "🏠 Main Menu",
-    "🗄️ Database Editor"
+    "🗄️ Database Editor",
+    "🗂️ Groups Manager"
 ])
 
 # =========================
