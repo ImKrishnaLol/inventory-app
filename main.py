@@ -47,3 +47,18 @@ def get_items():
         }
         for r in rows
     ]
+@app.post("/add")
+def add_item(item: Item):
+    conn = get_conn()
+    cur = conn.cursor()
+
+    cur.execute(
+        "INSERT INTO items (name, category, quantity, threshold) VALUES (%s, %s, %s, %s)",
+        (item.name, item.category, item.quantity, item.threshold)
+    )
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+    return {"message": "Item added"}
