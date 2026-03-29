@@ -318,27 +318,17 @@ def get_group_members(group_id: str):
 
     try:
         cur.execute("""
-            SELECT gm.id, i.name, g2.name
+            SELECT 
+                gm.id,
+                gm.item_id,
+                gm.child_group_id,
+                i.name,
+                g2.name
             FROM group_members gm
             LEFT JOIN items i ON gm.item_id = i.id
             LEFT JOIN groups g2 ON gm.child_group_id = g2.id
             WHERE gm.group_id = %s
         """, (group_id,))
-
-        rows = cur.fetchall()
-
-        return [
-            {
-                "id": str(r[0]),
-                "item_name": r[1],
-                "group_name": r[2]
-            }
-            for r in rows
-        ]
-
-    finally:
-        cur.close()
-        release_conn(conn)
 
 # =========================
 # ADD MEMBER
