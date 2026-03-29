@@ -45,11 +45,23 @@ def delete_item(item_id):
         return r.status_code == 200
     except:
         return False
+
+def update_item(item_id, item_data):
+    try:
+        r = requests.put(f"{API}/items/{item_id}", json=item_data)
+        return r.status_code == 200
+    except:
+        return False
+
+
 # =========================
 # NAVIGATION
 # =========================
 st.sidebar.title("Navigation")
-page = st.sidebar.radio("Go to", ["🏠 Home", "⚙️ System Status", "📦 Items", "➕ Add Item"])
+page = st.sidebar.radio(
+    "Go to",
+    ["🏠 Home", "⚙️ System Status", "📦 Items", "➕ Add Item", "✏️ Edit Item"]
+)
 
 # =========================
 # HOME PAGE
@@ -162,3 +174,54 @@ elif page == "➕ Add Item":
                 st.success(f"Item '{name}' added successfully!")
             else:
                 st.error("Failed to add item")
+
+# =========================
+# EDIT ITEM PAGE
+# =========================
+elif page == "✏️ Edit Item":
+    st.title("✏️ Edit Item")
+
+    items = fetch_items()
+
+    if not items:
+        st.info("No items available")
+    else:
+        item_map = {item["name"]: item for item in items}
+        selected_name = st.selectbox("Select item", list(item_map.keys()))
+        item = item_map[selected_name]
+
+        st.subheader("Edit Details")
+
+        name = st.text_input("Name", value=item["name"])
+        category = st.text_input("Shop Category", value=item["shop_category"])
+        unit = st.text_input("Unit", value=item["unit"])
+
+        unit_factor = st.number_input("Unit Factor", min_value=1, value=item["unit_factor"])
+        irreplacable = st.checkbox("Irreplacable", value=item["irreplacable"])
+
+        current_qty = st.number_input("Current Quantity", min_value=0, value=item["current_qty"])
+        ideal_qty = st.number_input("Ideal Quantity", min_value=0, value=item["ideal_qty"])
+
+        low_stock_ratio = st.slider("Low Stock Ratio", 0.0, 1.0, float(item["low_stock_ratio"]))
+        consumption_rate = st.number_input("Consumption Rate", min_value=0.0001, value=float(item["consumption_rate"]))
+
+        if st.button("Save Changes"):
+            updated_data = {
+                "name": name,
+                "shop_category": category,
+                "unit": unit,
+                "unit_factor": unit_factor,
+                "irreplacable": irreplacable,
+                "current_qty": current_qty,
+                "ideal_qty": ideal_qty,
+                "low_stock_ratio": low_stock_ratio,
+                "consumption_rate": consumption_rate
+            }
+
+            success = update_item(item["id"], updated_data)
+
+            if success:
+                st.success(f"Item '{name}' updated!")
+                st.rerun()
+            else:
+                st.error("Failed to update item")
