@@ -122,54 +122,66 @@ def update_qty_background(item_id: int, new_qty: int):
 # =========================
 # ITEM NODE COMPONENT (Proper Fix)
 # =========================
-def render_item_node(item):
-    key_name = f"qty_{item['id']}"
-    status_key = f"status_{item['id']}"
+def render_item_node_debug(item):
+    key_qty = f"qty_{item['id']}"
+    key_status = f"status_{item['id']}"
 
-    # Initialize session state
-    if key_name not in st.session_state:
-        st.session_state[key_name] = int(item.get("current_qty", 0))
-        st.session_state[status_key] = ""
+    # Initialize session_state
+    if key_qty not in st.session_state:
+        st.session_state[key_qty] = int(item.get("current_qty", 0))
+        st.session_state[key_status] = "Ready"
 
-    def update_backend(new_qty: int):
-        """Send new quantity to backend asynchronously."""
+    def update_backend_full(item):
+        """Send full item to backend asynchronously"""
         try:
-            st.session_state[status_key] = "Saving..."
-            r = update_item(item["id"], {"current_qty": new_qty})
-            st.session_state[status_key] = "Saved" if r else "Failed"
-            # Reset status after 1 sec
-            threading.Timer(1.0, lambda: st.session_state.update({status_key: ""})).start()
-        except:
-            st.session_state[status_key] = "Failed"
+            st.session_state[key_status] = "Saving..."
+            payload = {
+                "id": item["id"],
+                "name": item["name"],
+                "shop_category": item["shop_category"],
+                "unit": item["unit"],
+                "unit_factor": item["unit_factor"],
+                "irreplacable": item["irreplacable"],
+                "current_qty": st.session_state[key_qty],
+                "ideal_qty": item.get("ideal_qty", 0),
+                "low_stock_ratio": item.get("low_stock_ratio", 0.3),
+                "consumption_rate": item.get("consumption_rate", 0.01)
+            }
+            st.write(f"DEBUG: Updating backend for {item['name']} with", payload)
+            success = update_item(item["id"], payload)
+            st.session_state[key_status] = "Saved" if success else "Failed"
+        except Exception as e:
+            st.session_state[key_status] = f"Error: {e}"
 
-    with st.expander(f"📦 {item['name']}", expanded=False):
-        # Number input bound to session state
+    with st.expander(f"📦 {item['name']}", expanded=True):
+        # Number input for quantity
         new_qty = st.number_input(
             "Update Quantity",
             min_value=0,
-            value=st.session_state[key_name],
+            value=st.session_state[key_qty],
             step=1,
             key=f"input_{item['id']}"
         )
 
-        # Detect manual change
-        if new_qty != st.session_state[key_name]:
-            st.session_state[key_name] = new_qty
-            threading.Thread(target=update_backend, args=(new_qty,), daemon=True).start()
+        if new_qty != st.session_state[key_qty]:
+            st.session_state[key_qty] = new_qty
+            threading.Thread(target=update_backend_full, args=(item,), daemon=True).start()
 
-        st.write(st.session_state[status_key])
+        st.write("Status:", st.session_state[key_status])
+        st.write("Session Value:", st.session_state[key_qty])
+        st.write("Backend Original Value:", item["current_qty"])
 
-        # Quick buttons
         col1, col2 = st.columns(2)
         ideal_qty = int(item.get("ideal_qty") or 0)
 
+        # Quick buttons
         if col1.button("Set to 0", key=f"zero_{item['id']}"):
-            st.session_state[key_name] = 0
-            threading.Thread(target=update_backend, args=(0,), daemon=True).start()
+            st.session_state[key_qty] = 0
+            threading.Thread(target=update_backend_full, args=(item,), daemon=True).start()
 
         if col2.button("Set to Ideal", key=f"ideal_{item['id']}"):
-            st.session_state[key_name] = ideal_qty
-            threading.Thread(target=update_backend, args=(ideal_qty,), daemon=True).start()
+            st.session_state[key_qty] = ideal_qty
+            threading.Thread(target=update_backend_full, args=(item,), daemon=True).start()
 
 
 
@@ -219,10 +231,10 @@ page = st.sidebar.radio(
 )
 
 # =========================
-# HOME PAGE (Fixed)
+# HOME PAGE (Debuggable, No Rerun)
 # =========================
 if page == "🏠 Home":
-    st.title("🛒 Shopping Overview")
+    st.title("🛒 Shopping Overview (Debug Mode)")
 
     items = fetch_items()
     groups = fetch_groups()
@@ -234,9 +246,44 @@ if page == "🏠 Home":
         st.subheader("📁 Groups")
         seen_items = set()
 
+        # -------------------------
+        # RECURSIVE TREE RENDERING
+        # -------------------------
+        def render_tree_debug(group_id, group_name, visited=None):
+            if visited is None:
+                visited = set()
+
+            if group_id in visited:
+                st.warning("Cycle detected in groups")
+                return
+
+            visited.add(group_id)
+            members = fetch_group_members(group_id)
+
+            with st.expander(f"📁 {group_name}", expanded=False):
+                if not members:
+                    st.write("• (empty)")
+                    return
+
+                for m in members:
+                    # Item node
+                    if m.get("item_id"):
+                        item = items_dict.get(m["item_id"])
+                        if item:
+                            render_item_node_debug(item)
+
+                    # Child group node
+                    elif m.get("child_group_id"):
+                        child_name = m.get("group_name", "Unnamed Group")
+                        render_tree_debug(
+                            m["child_group_id"],
+                            child_name,
+                            visited.copy()
+                        )
+
         if groups:
             for g in groups:
-                render_tree(g["id"], g["name"], items_dict)
+                render_tree_debug(g["id"], g["name"])
 
         st.divider()
 
@@ -245,23 +292,20 @@ if page == "🏠 Home":
         # =========================
         st.subheader("📦 Other Items")
 
-        # Mark all items in groups as seen
+        # Mark items that are already in groups
         for g in groups:
             members = fetch_group_members(g["id"])
             for m in members:
                 if m.get("item_id"):
                     seen_items.add(m["item_id"])
 
-        remaining = [
-            item for item in items
-            if item["id"] not in seen_items and needs_restock(item)
-        ]
+        remaining = [item for item in items if item["id"] not in seen_items]
 
         if not remaining:
             st.write("✅ Nothing else")
         else:
             for item in remaining:
-                render_item_node(item)
+                render_item_node_debug(item)
 
 # =========================
 # SYSTEM STATUS PAGE
