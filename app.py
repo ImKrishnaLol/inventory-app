@@ -114,7 +114,7 @@ elif page=="🗂️ Groups Manager":
 
     # DELETE GROUP
     st.subheader("🗑️ Delete Group")
-    if not groups:
+    if groups:
         selected_group_name = st.selectbox("Select Group to Delete", groups["name"])
         selected_group_id = groups[groups["name"]==selected_group_name]["id"].values[0]
         if st.button("Delete Group"):
@@ -125,7 +125,7 @@ elif page=="🗂️ Groups Manager":
     st.divider()
     # MEMBERS MANAGEMENT
     st.subheader("🔗 Add/Remove Members")
-    if not groups:
+    if groups:
         selected_group_name = st.selectbox("Select Group", groups["name"])
         selected_group_id = groups[groups["name"]==selected_group_name]["id"].values[0]
 
