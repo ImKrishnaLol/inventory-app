@@ -57,20 +57,45 @@ if page=="🏠 Main Menu":
 
 # =========================
 # DATABASE EDITOR
+# =========================
 elif page=="🗄️ Database Editor":
     st.title("🗄️ Database Editor")
     df_future = executor.submit(fetch_items)
     df = df_future.result()
 
+    # Default row template matching Item model defaults
+    default_row = {
+        "name": "",
+        "shop_category": "",
+        "unit": "",
+        "unit_factor": 1,
+        "irreplacable": False,
+        "current_qty": 0,
+        "ideal_qty": 0,
+        "low_stock_ratio": 0.3,
+        "consumption_rate": None,
+        "last_updated": ""
+    }
+
     if df.empty:
         st.warning("No data found.")
-    else:
-        st.subheader("📊 Live Table")
-        edited_df = st.data_editor(df, num_rows="dynamic", use_container_width=True)
+        # Start with one default row
+        df = pd.DataFrame([default_row])
+    
+    st.subheader("📊 Live Table")
+    edited_df = st.data_editor(df, num_rows="dynamic", use_container_width=True)
 
-        st.divider()
-        # DELETE
-        st.subheader("🗑️ Delete Item")
+    # ➕ ADD NEW ROW BUTTON
+    if st.button("➕ Add New Row"):
+        # Append a new row with defaults
+        edited_df = pd.concat([edited_df, pd.DataFrame([default_row])], ignore_index=True)
+        st.experimental_rerun()  # rerun to update the editor with the new row
+
+    st.divider()
+    
+    # DELETE ITEM
+    st.subheader("🗑️ Delete Item")
+    if not df.empty:
         item_to_delete = st.selectbox("Select item", df["name"])
         if st.button("Delete"):
             item_id = df[df["name"]==item_to_delete]["id"].values[0]
@@ -78,19 +103,20 @@ elif page=="🗄️ Database Editor":
             if r.status_code==200: show_message("Item deleted!")
             else: st.error(r.text)
 
-        st.divider()
-        # SAVE CHANGES BULK
-        if st.button("💾 Save Changes"):
-            changes=[]
-            for i,row in edited_df.iterrows():
-                if i<len(df) and not row.equals(df.iloc[i]):
-                    d=row.to_dict(); d["id"]=df.iloc[i]["id"]; changes.append(d)
-                elif i>=len(df) and row["name"]: changes.append(row.to_dict())
-            if changes:
-                r=requests.put(f"{API}/update-items", json=changes)
-                if r.status_code==200: show_message("Changes saved!")
-                else: st.error(r.text)
-            else: st.info("No changes detected.")
+    st.divider()
+    
+    # SAVE CHANGES BULK
+    if st.button("💾 Save Changes"):
+        changes=[]
+        for i,row in edited_df.iterrows():
+            if i<len(df) and not row.equals(df.iloc[i]):
+                d=row.to_dict(); d["id"]=df.iloc[i]["id"]; changes.append(d)
+            elif i>=len(df) and row["name"]: changes.append(row.to_dict())
+        if changes:
+            r=requests.put(f"{API}/update-items", json=changes)
+            if r.status_code==200: show_message("Changes saved!")
+            else: st.error(r.text)
+        else: st.info("No changes detected.")
 
 # =========================
 # GROUPS MANAGER
