@@ -308,3 +308,92 @@ def delete_group(group_id: str):
     finally:
         cur.close()
         release_conn(conn)
+# =========================
+# GET GROUP MEMBERS
+# =========================
+@app.get("/groups/{group_id}/members")
+def get_group_members(group_id: str):
+    conn = get_conn()
+    cur = conn.cursor()
+
+    try:
+        cur.execute("""
+            SELECT gm.id, i.name, g2.name
+            FROM group_members gm
+            LEFT JOIN items i ON gm.item_id = i.id
+            LEFT JOIN groups g2 ON gm.child_group_id = g2.id
+            WHERE gm.group_id = %s
+        """, (group_id,))
+
+        rows = cur.fetchall()
+
+        return [
+            {
+                "id": str(r[0]),
+                "item_name": r[1],
+                "group_name": r[2]
+            }
+            for r in rows
+        ]
+
+    finally:
+        cur.close()
+        release_conn(conn)
+
+# =========================
+# ADD MEMBER
+# =========================
+@app.post("/groups/{group_id}/members")
+def add_member(group_id: str, member: GroupMember):
+    conn = get_conn()
+    cur = conn.cursor()
+
+    try:
+        if not member.item_id and not member.child_group_id:
+            raise HTTPException(status_code=400, detail="Provide item_id or child_group_id")
+
+        cur.execute("""
+            INSERT INTO group_members (id, group_id, item_id, child_group_id)
+            VALUES (%s, %s, %s, %s)
+        """, (
+            str(uuid4()),
+            group_id,
+            member.item_id,
+            member.child_group_id
+        ))
+
+        conn.commit()
+        return {"message": "Member added"}
+
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+
+    finally:
+        cur.close()
+        release_conn(conn)
+
+# =========================
+# DELETE MEMBER
+# =========================
+@app.delete("/members/{member_id}")
+def delete_member(member_id: str):
+    conn = get_conn()
+    cur = conn.cursor()
+
+    try:
+        cur.execute("DELETE FROM group_members WHERE id=%s", (member_id,))
+
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Member not found")
+
+        conn.commit()
+        return {"message": "Member removed"}
+
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+
+    finally:
+        cur.close()
+        release_conn(conn)
