@@ -120,21 +120,30 @@ def update_qty_background(item_id: int, new_qty: int):
 
 
 # =========================
-# ITEM NODE COMPONENT (No Rerun, Works)
+# ITEM NODE COMPONENT (Proper Fix)
 # =========================
 def render_item_node(item):
     key_name = f"qty_{item['id']}"
+    status_key = f"status_{item['id']}"
 
-    # Initialize session state once
+    # Initialize session state
     if key_name not in st.session_state:
         st.session_state[key_name] = int(item.get("current_qty", 0))
+        st.session_state[status_key] = ""
 
     def update_backend(new_qty: int):
-        """Send new quantity to backend in background thread."""
-        threading.Thread(target=update_item, args=(item["id"], {"current_qty": new_qty}), daemon=True).start()
+        """Send new quantity to backend asynchronously."""
+        try:
+            st.session_state[status_key] = "Saving..."
+            r = update_item(item["id"], {"current_qty": new_qty})
+            st.session_state[status_key] = "Saved" if r else "Failed"
+            # Reset status after 1 sec
+            threading.Timer(1.0, lambda: st.session_state.update({status_key: ""})).start()
+        except:
+            st.session_state[status_key] = "Failed"
 
     with st.expander(f"📦 {item['name']}", expanded=False):
-        # Number input: updates session state and backend immediately
+        # Number input bound to session state
         new_qty = st.number_input(
             "Update Quantity",
             min_value=0,
@@ -143,23 +152,28 @@ def render_item_node(item):
             key=f"input_{item['id']}"
         )
 
-        # Detect change
+        # Detect manual change
         if new_qty != st.session_state[key_name]:
             st.session_state[key_name] = new_qty
-            update_backend(new_qty)
+            threading.Thread(target=update_backend, args=(new_qty,), daemon=True).start()
+
+        st.write(st.session_state[status_key])
 
         # Quick buttons
         col1, col2 = st.columns(2)
-
         ideal_qty = int(item.get("ideal_qty") or 0)
 
         if col1.button("Set to 0", key=f"zero_{item['id']}"):
             st.session_state[key_name] = 0
-            update_backend(0)
+            threading.Thread(target=update_backend, args=(0,), daemon=True).start()
 
         if col2.button("Set to Ideal", key=f"ideal_{item['id']}"):
             st.session_state[key_name] = ideal_qty
-            update_backend(ideal_qty)
+            threading.Thread(target=update_backend, args=(ideal_qty,), daemon=True).start()
+
+
+
+
 
 def render_tree(group_id, group_name, items_dict, visited=None):
     """Recursive function to display group tree."""
