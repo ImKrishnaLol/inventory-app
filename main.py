@@ -48,6 +48,7 @@ class Group(BaseModel):
     id: Optional[str]
     name: str
     irreplacable: bool = False
+    ideal_qty: int = 0
 
 class GroupMember(BaseModel):
     group_id: str
@@ -250,11 +251,16 @@ def get_groups():
     cur = conn.cursor()
 
     try:
-        cur.execute("SELECT id, name, irreplacable FROM groups ORDER BY name")
+        cur.execute("SELECT id, name, irreplacable, ideal_qty FROM groups ORDER BY name")
         rows = cur.fetchall()
 
         return [
-            {"id": str(r[0]), "name": r[1], "irreplacable": r[2]}
+            {
+                "id": str(r[0]),
+                "name": r[1],
+                "irreplacable": r[2],
+                "ideal_qty": r[3]
+            }
             for r in rows
         ]
 
@@ -271,8 +277,8 @@ def add_group(group: Group):
         group_id = str(uuid4())
 
         cur.execute(
-            "INSERT INTO groups (id, name, irreplacable) VALUES (%s,%s,%s)",
-            (group_id, group.name, group.irreplacable)
+            "INSERT INTO groups (id, name, irreplacable, ideal_qty) VALUES (%s,%s,%s,%s)",
+            (group_id, group.name, group.irreplacable, group.ideal_qty)
         )
 
         conn.commit()
