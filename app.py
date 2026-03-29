@@ -39,6 +39,12 @@ def create_item(item_data):
     except:
         return None
 
+def delete_item(item_id):
+    try:
+        r = requests.delete(f"{API}/items/{item_id}")
+        return r.status_code == 200
+    except:
+        return False
 # =========================
 # NAVIGATION
 # =========================
@@ -92,7 +98,27 @@ elif page == "📦 Items":
     else:
         st.success(f"{len(items)} items loaded")
 
+        # Show table
         st.dataframe(items, use_container_width=True)
+
+        st.divider()
+
+        # DELETE SECTION
+        st.subheader("🗑️ Delete Item")
+
+        item_options = {item["name"]: item["id"] for item in items}
+
+        selected_name = st.selectbox("Select item to delete", list(item_options.keys()))
+        selected_id = item_options[selected_name]
+
+        if st.button("Delete Item"):
+            success = delete_item(selected_id)
+
+            if success:
+                st.success(f"Item '{selected_name}' deleted")
+                st.rerun()
+            else:
+                st.error("Failed to delete item")
 
 # =========================
 # ADD ITEM PAGE
