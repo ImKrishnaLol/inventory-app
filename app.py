@@ -140,17 +140,17 @@ def render_item_node(item):
         if col1.button("+1", key=f"plus_{item['id']}"):
             new_qty = item["current_qty"] + 1
             update_item(item["id"], {"current_qty": new_qty})
-            st.experimental_rerun()
+            st.rerun()
         if col2.button("-1", key=f"minus_{item['id']}"):
             new_qty = max(0, item["current_qty"] - 1)
             update_item(item["id"], {"current_qty": new_qty})
-            st.experimental_rerun()
+            st.rerun()
         if col3.button("Set to 0", key=f"zero_{item['id']}"):
             update_item(item["id"], {"current_qty": 0})
-            st.experimental_rerun()
+            st.rerun()
         if col4.button("Set to ideal", key=f"ideal_{item['id']}"):
             update_item(item["id"], {"current_qty": item["ideal_qty"]})
-            st.experimental_rerun()
+            st.rerun()
 
 def render_tree(group_id, group_name, items_dict, visited=None):
     """Recursive function to display group tree."""
