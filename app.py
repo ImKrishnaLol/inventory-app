@@ -89,7 +89,7 @@ elif page=="🗄️ Database Editor":
     if st.button("➕ Add New Row"):
         # Append a new row with defaults
         edited_df = pd.concat([edited_df, pd.DataFrame([default_row])], ignore_index=True)
-        st.experimental_rerun()  # rerun to update the editor with the new row
+        st.rerun()  # rerun to update the editor with the new row
 
     st.divider()
     
