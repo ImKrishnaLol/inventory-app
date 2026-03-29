@@ -2,6 +2,14 @@ import streamlit as st
 import requests
 import time
 
+
+# =========================
+# CONFIG
+# =========================
+API = "https://inventory-app-mi1m.onrender.com"
+
+st.set_page_config(page_title="Inventory System", layout="wide")
+
 def wake_server():
     try:
         requests.get(f"{API}/", timeout=5)
@@ -9,12 +17,6 @@ def wake_server():
         time.sleep(2)
 
 wake_server()
-# =========================
-# CONFIG
-# =========================
-API = "https://inventory-app-mi1m.onrender.com"
-
-st.set_page_config(page_title="Inventory System", layout="wide")
 
 # =========================
 # API FUNCTIONS
@@ -490,17 +492,16 @@ elif page == "🗂️ Groups":
     # =========================
     st.divider()
     st.subheader("🌳 Group Tree View")
-
+    
     if groups:
         group_map = {g["name"]: g["id"] for g in groups}
-
+    
         selected_root = st.selectbox(
             "Select Root Group",
             list(group_map.keys()),
             key="tree_root"
         )
-
+    
         st.write("### Structure")
-
-        if m.get("child_group_id"):
-            render_tree(m["child_group_id"], level+1, visited)
+    
+        render_tree(group_map[selected_root])
