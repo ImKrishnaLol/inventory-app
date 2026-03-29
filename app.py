@@ -109,10 +109,13 @@ def delete_member(member_id):
 def needs_restock(item):
     return True
 
-def update_qty_background(item):
-    """Update full item object in the background thread."""
+# =========================
+# BACKGROUND UPDATE
+# =========================
+def update_qty_background(item_id, new_qty):
+    """Send the update to backend in a thread."""
     def _update():
-        update_item(item["id"], item)
+        update_item(item_id, {"current_qty": new_qty})
     threading.Thread(target=_update, daemon=True).start()
 
 # =========================
@@ -147,58 +150,40 @@ def set_qty_callback(item_id, value):
 # ITEM NODE COMPONENT
 # =========================
 def render_item_node(item):
-    """Interactive item node for shopping list with safe background saving."""
     with st.expander(f"📦 {item['name']}", expanded=False):
-
-        # Estimated quantity (placeholder)
-        st.write(f"**Estimated Quantity:** ⚪")
-
-        # Last updated quantity (with unit factor)
-        last_qty = item["current_qty"] * item["unit_factor"]
-        st.write(f"**Last Updated Quantity:** {last_qty} {item['unit']}")
-
-        # Last updated timestamp
-        last_updated = item.get("last_updated")
-        formatted = (
-            datetime.fromisoformat(last_updated).strftime("%H:%M, %d %b %Y")
-            if last_updated else "—"
-        )
-        st.write(f"**Last Updated:** {formatted}")
-
-        # Number input
         key_name = f"qty_{item['id']}"
+
+        # Initialize session state
         if key_name not in st.session_state:
             st.session_state[key_name] = int(item.get("current_qty", 0))
 
+        # Number input
         new_qty = st.number_input(
             "Update Quantity",
             min_value=0,
             value=st.session_state[key_name],
             step=1,
-            key=key_name,
-            on_change=set_qty_callback,
-            args=(item["id"], st.session_state[key_name])
+            key=key_name
         )
 
-        # Quick buttons with callbacks
+        # Detect manual change
+        if new_qty != item.get("current_qty"):
+            st.session_state[key_name] = new_qty
+            update_qty_background(item["id"], new_qty)
+
+        # Quick buttons
         col1, col2 = st.columns(2)
 
-        # Set to 0 button
-        col1.button(
-            "Set to 0",
-            key=f"zero_{item['id']}",
-            on_click=set_qty_callback,
-            args=(item["id"], 0)
-        )
+        # Set to 0
+        if col1.button("Set to 0", key=f"zero_{item['id']}"):
+            st.session_state[key_name] = 0
+            update_qty_background(item["id"], 0)
 
-        # Set to Ideal button
+        # Set to Ideal
         ideal_qty = int(item.get("ideal_qty") or 0)
-        col2.button(
-            "Set to Ideal",
-            key=f"ideal_{item['id']}",
-            on_click=set_qty_callback,
-            args=(item["id"], ideal_qty)
-        )
+        if col2.button("Set to Ideal", key=f"ideal_{item['id']}"):
+            st.session_state[key_name] = ideal_qty
+            update_qty_background(item["id"], ideal_qty)
 
 def render_tree(group_id, group_name, items_dict, visited=None):
     """Recursive function to display group tree."""
