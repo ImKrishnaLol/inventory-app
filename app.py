@@ -327,7 +327,7 @@ elif page == "🗂️ Groups":
         st.info("No groups found")
     else:
         for g in groups:
-            st.write(f"- {g['name']}")
+            st.write(f"- {g['name']} (Ideal: {g.get('ideal_qty', 0)})")
 
     st.divider()
 
@@ -338,6 +338,7 @@ elif page == "🗂️ Groups":
 
     new_name = st.text_input("Group Name")
     new_irreplacable = st.checkbox("Irreplacable")
+    new_ideal_qty = st.number_input("Ideal Quantity", min_value=0, value=0)
 
     if st.button("Create Group"):
         if not new_name:
@@ -346,7 +347,8 @@ elif page == "🗂️ Groups":
             result = create_group({
                 "id": None,
                 "name": new_name,
-                "irreplacable": new_irreplacable
+                "irreplacable": new_irreplacable,
+                "ideal_qty": new_ideal_qty
             })
 
             if result:
