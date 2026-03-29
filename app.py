@@ -95,6 +95,27 @@ def delete_member(member_id):
     except:
         return False
 
+def render_tree(group_id, level=0, visited=None):
+    if visited is None:
+        visited = set()
+
+    # Prevent infinite loops
+    if group_id in visited:
+        st.write("   " * level + "⚠️ Circular reference")
+        return
+
+    visited.add(group_id)
+
+    members = fetch_group_members(group_id)
+
+    for m in members:
+        if m.get("item_name"):
+            st.write("   " * level + f"📦 {m['item_name']}")
+        elif m.get("group_name"):
+            st.write("   " * level + f"📁 {m['group_name']}")
+            render_tree(m["child_group_id"], level + 1, visited)
+
+
 # =========================
 # NAVIGATION
 # =========================
