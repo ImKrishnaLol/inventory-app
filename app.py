@@ -1,7 +1,7 @@
 import streamlit as st
 import requests
 import time
-
+from datetime import datetime
 
 # =========================
 # CONFIG
@@ -112,10 +112,45 @@ def needs_restock(item):
 # REUSABLE COMPONENTS
 # =========================
 def render_item_node(item):
-    """Display a single item in an expandable node."""
+    """Display a single item in an expandable node for shopping list use."""
     with st.expander(f"📦 {item['name']}", expanded=False):
-        st.write(f"Quantity: {item['current_qty']}")
-        # Future buttons like Edit, Delete, Add to Cart, etc. can go here
+        
+        # 1️⃣ Estimated quantity (placeholder)
+        st.write(f"Estimated quantity: ⚪")  # Placeholder
+
+        # 2️⃣ Last updated quantity (with unit)
+        quantity = item["current_qty"] * item["unit_factor"]
+        st.write(f"Last updated quantity: {quantity} {item['unit']}")
+
+        # 3️⃣ Last updated timestamp
+        last_updated = item.get("last_updated")
+        if last_updated:
+            # If timestamp is string, parse to datetime
+            try:
+                dt = datetime.fromisoformat(last_updated)
+                formatted = dt.strftime("%H:%M, %d %b %Y")
+            except:
+                formatted = str(last_updated)
+        else:
+            formatted = "—"
+        st.write(f"Last updated: {formatted}")
+
+        # 4️⃣ Quantity update controls
+        col1, col2, col3, col4 = st.columns(4)
+        if col1.button("+1", key=f"plus_{item['id']}"):
+            new_qty = item["current_qty"] + 1
+            update_item(item["id"], {"current_qty": new_qty})
+            st.experimental_rerun()
+        if col2.button("-1", key=f"minus_{item['id']}"):
+            new_qty = max(0, item["current_qty"] - 1)
+            update_item(item["id"], {"current_qty": new_qty})
+            st.experimental_rerun()
+        if col3.button("Set to 0", key=f"zero_{item['id']}"):
+            update_item(item["id"], {"current_qty": 0})
+            st.experimental_rerun()
+        if col4.button("Set to ideal", key=f"ideal_{item['id']}"):
+            update_item(item["id"], {"current_qty": item["ideal_qty"]})
+            st.experimental_rerun()
 
 def render_tree(group_id, group_name, items_dict, visited=None):
     """Recursive function to display group tree."""
