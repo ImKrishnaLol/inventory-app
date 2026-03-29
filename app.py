@@ -281,7 +281,7 @@ elif page == "🗂️ Groups":
             st.error("Name required")
         else:
             result = create_group({
-                "id":None
+                "id":None,
                 "name": new_name,
                 "irreplacable": new_irreplacable
             })
