@@ -2,6 +2,8 @@ from fastapi import FastAPI
 from pydantic import BaseModel, Field
 from typing import Optional
 from psycopg2 import pool
+from uuid import uuid4
+from fastapi import HTTPException
 
 # =========================
 # APP
@@ -111,6 +113,55 @@ def get_items():
             }
             for r in rows
         ]
+
+    finally:
+        cur.close()
+        release_conn(conn)
+
+
+
+# =========================
+# ADD ITEM
+# =========================
+@app.post("/items")
+def add_item(item: Item):
+    conn = get_conn()
+    cur = conn.cursor()
+
+    try:
+        item_id = str(uuid4())
+
+        cur.execute("""
+            INSERT INTO items (
+                id, name, shop_category, unit, unit_factor,
+                irreplacable, current_qty, ideal_qty,
+                low_stock_ratio, consumption_rate
+            )
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        """, (
+            item_id,
+            item.name,
+            item.shop_category,
+            item.unit,
+            item.unit_factor,
+            item.irreplacable,
+            item.current_qty,
+            item.ideal_qty,
+            item.low_stock_ratio,
+            item.consumption_rate
+        ))
+
+        conn.commit()
+
+        return {
+            "id": item_id,
+            **item.dict(),
+            "last_updated": ""
+        }
+
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
 
     finally:
         cur.close()
