@@ -444,6 +444,23 @@ elif page == "🗂️ Groups":
     
                     if success:
                         st.success(f"Removed '{name}'")
-                        st.rerun()
-                    else:
-                        st.error("Failed to remove member")
+        # =========================
+        # TREE VIEW
+        # =========================
+        st.subheader("🌳 Group Tree View")
+        
+        if groups:
+            group_map = {g["name"]: g["id"] for g in groups}
+        
+            selected_root = st.selectbox(
+                "Select Root Group",
+                list(group_map.keys()),
+                key="tree_root"
+            )
+        
+            st.write("### Structure")
+        
+            render_tree(group_map[selected_root])
+                                st.rerun()
+                            else:
+                                st.error("Failed to remove member")
