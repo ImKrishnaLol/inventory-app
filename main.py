@@ -3,19 +3,15 @@ from pydantic import BaseModel, Field
 from uuid import uuid4
 from psycopg2 import pool
 from typing import Optional, List
-import datetime
+import asyncio
 
 # =========================
-# 🔌 APP SETUP
+# APP & DB POOL
 # =========================
 app = FastAPI(title="Inventory + Groups API")
 
-# =========================
-# 🏗 DATABASE POOL
-# =========================
 conn_pool = pool.SimpleConnectionPool(
-    minconn=1,
-    maxconn=10,
+    minconn=1, maxconn=10,
     host="aws-1-ap-southeast-1.pooler.supabase.com",
     database="postgres",
     user="postgres.nqbjmarcjrzfkmtfbqsd",
@@ -25,15 +21,14 @@ conn_pool = pool.SimpleConnectionPool(
 
 def get_conn():
     return conn_pool.getconn()
-
 def release_conn(conn):
     conn_pool.putconn(conn)
 
 # =========================
-# 📦 DATA MODELS
+# DATA MODELS
 # =========================
 class Item(BaseModel):
-    id: Optional[str] = None
+    id: Optional[str]
     name: str
     shop_category: str
     unit: str
@@ -45,7 +40,7 @@ class Item(BaseModel):
     consumption_rate: Optional[float] = Field(default=None, gt=0)
 
 class Group(BaseModel):
-    id: Optional[str] = None
+    id: Optional[str]
     name: str
     irreplacable: bool = False
 
@@ -55,17 +50,17 @@ class GroupMember(BaseModel):
     child_group_id: Optional[str] = None
 
 # =========================
-# 🏠 ROOT
+# ROOT
 # =========================
 @app.get("/")
-def home():
+async def home():
     return {"status": "API is running"}
 
 # =========================
-# 📊 ITEMS ENDPOINTS
+# ITEMS ENDPOINTS
 # =========================
 @app.get("/items")
-def get_items():
+async def get_items():
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("SELECT * FROM items ORDER BY name")
@@ -73,24 +68,18 @@ def get_items():
     cur.close()
     release_conn(conn)
     return [
-        {
-            "id": str(r[0]),
-            "name": r[1],
-            "shop_category": r[2],
-            "unit": r[3],
-            "unit_factor": r[4],
-            "irreplacable": r[5],
-            "current_qty": r[6],
-            "ideal_qty": r[7],
-            "low_stock_ratio": r[8],
-            "consumption_rate": r[9],
-            "last_updated": str(r[10])
-        } for r in rows
+        dict(
+            id=str(r[0]), name=r[1], shop_category=r[2], unit=r[3],
+            unit_factor=r[4], irreplacable=r[5], current_qty=r[6],
+            ideal_qty=r[7], low_stock_ratio=r[8], consumption_rate=r[9],
+            last_updated=str(r[10])
+        )
+        for r in rows
     ]
 
 @app.get("/items-min")
-def get_items_min():
-    """Only return id and name for dropdowns."""
+async def get_items_min():
+    """For dropdowns only"""
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("SELECT id, name FROM items ORDER BY name")
@@ -100,24 +89,21 @@ def get_items_min():
     return [{"id": str(r[0]), "name": r[1]} for r in rows]
 
 @app.post("/add")
-def add_item(item: Item):
+async def add_item(item: Item):
     conn = get_conn()
     cur = conn.cursor()
     try:
-        cur.execute(
-            """
+        cur.execute("""
             INSERT INTO items (
                 id, name, shop_category, unit, unit_factor,
                 irreplacable, current_qty, ideal_qty,
                 low_stock_ratio, consumption_rate
             ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-            """,
-            (
-                str(uuid4()), item.name, item.shop_category, item.unit,
-                item.unit_factor, item.irreplacable, item.current_qty,
-                item.ideal_qty, item.low_stock_ratio, item.consumption_rate
-            )
-        )
+        """, (
+            str(uuid4()), item.name, item.shop_category, item.unit,
+            item.unit_factor, item.irreplacable, item.current_qty,
+            item.ideal_qty, item.low_stock_ratio, item.consumption_rate
+        ))
         conn.commit()
     except Exception as e:
         conn.rollback()
@@ -128,29 +114,25 @@ def add_item(item: Item):
     return {"message": "Item added"}
 
 @app.put("/update-items")
-def update_items(items: List[Item]):
-    """Bulk update items to reduce multiple calls."""
+async def update_items(items: List[Item]):
     conn = get_conn()
     cur = conn.cursor()
     try:
         for item in items:
             if not item.id:
                 continue
-            cur.execute(
-                """
+            cur.execute("""
                 UPDATE items SET
                     name=%s, shop_category=%s, unit=%s, unit_factor=%s,
                     irreplacable=%s, current_qty=%s, ideal_qty=%s,
                     low_stock_ratio=%s, consumption_rate=%s,
                     last_updated=NOW()
                 WHERE id=%s
-                """,
-                (
-                    item.name, item.shop_category, item.unit, item.unit_factor,
-                    item.irreplacable, item.current_qty, item.ideal_qty,
-                    item.low_stock_ratio, item.consumption_rate, item.id
-                )
-            )
+            """, (
+                item.name, item.shop_category, item.unit, item.unit_factor,
+                item.irreplacable, item.current_qty, item.ideal_qty,
+                item.low_stock_ratio, item.consumption_rate, item.id
+            ))
         conn.commit()
     except Exception as e:
         conn.rollback()
@@ -161,7 +143,7 @@ def update_items(items: List[Item]):
     return {"message": "Items updated"}
 
 @app.delete("/delete-item/{item_id}")
-def delete_item(item_id: str):
+async def delete_item(item_id: str):
     conn = get_conn()
     cur = conn.cursor()
     try:
@@ -178,10 +160,10 @@ def delete_item(item_id: str):
     return {"message": "Item deleted"}
 
 # =========================
-# 📦 GROUPS ENDPOINTS
+# GROUPS ENDPOINTS
 # =========================
 @app.get("/groups")
-def get_groups():
+async def get_groups():
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("SELECT * FROM groups ORDER BY name")
@@ -191,8 +173,7 @@ def get_groups():
     return [{"id": str(r[0]), "name": r[1], "irreplacable": r[2]} for r in rows]
 
 @app.get("/groups-min")
-def get_groups_min():
-    """Minimal group info for dropdowns"""
+async def get_groups_min():
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("SELECT id, name FROM groups ORDER BY name")
@@ -202,14 +183,12 @@ def get_groups_min():
     return [{"id": str(r[0]), "name": r[1]} for r in rows]
 
 @app.post("/add-group")
-def add_group(group: Group):
+async def add_group(group: Group):
     conn = get_conn()
     cur = conn.cursor()
     try:
-        cur.execute(
-            "INSERT INTO groups (id, name, irreplacable) VALUES (%s,%s,%s)",
-            (str(uuid4()), group.name, group.irreplacable)
-        )
+        cur.execute("INSERT INTO groups (id, name, irreplacable) VALUES (%s,%s,%s)",
+                    (str(uuid4()), group.name, group.irreplacable))
         conn.commit()
     except Exception as e:
         conn.rollback()
@@ -219,8 +198,28 @@ def add_group(group: Group):
         release_conn(conn)
     return {"message": "Group added"}
 
+@app.delete("/delete-group/{group_id}")
+async def delete_group(group_id: str):
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        # Remove members first
+        cur.execute("DELETE FROM group_members WHERE group_id=%s", (group_id,))
+        # Delete group
+        cur.execute("DELETE FROM groups WHERE id=%s", (group_id,))
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Group not found")
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+    finally:
+        cur.close()
+        release_conn(conn)
+    return {"message": "Group deleted"}
+
 @app.get("/group-members/{group_id}")
-def get_group_members(group_id: str):
+async def get_group_members(group_id: str):
     conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
@@ -236,16 +235,16 @@ def get_group_members(group_id: str):
     return [{"id": str(r[0]), "item_name": r[1], "group_name": r[2]} for r in rows]
 
 @app.post("/add-member")
-def add_member(member: GroupMember):
+async def add_member(member: GroupMember):
     if not member.item_id and not member.child_group_id:
         raise HTTPException(status_code=400, detail="Must provide item_id or child_group_id")
     conn = get_conn()
     cur = conn.cursor()
     try:
-        cur.execute(
-            "INSERT INTO group_members (id, group_id, item_id, child_group_id) VALUES (%s,%s,%s,%s)",
-            (str(uuid4()), member.group_id, member.item_id, member.child_group_id)
-        )
+        cur.execute("""
+            INSERT INTO group_members (id, group_id, item_id, child_group_id)
+            VALUES (%s,%s,%s,%s)
+        """, (str(uuid4()), member.group_id, member.item_id, member.child_group_id))
         conn.commit()
     except Exception as e:
         conn.rollback()
@@ -256,7 +255,7 @@ def add_member(member: GroupMember):
     return {"message": "Member added"}
 
 @app.delete("/remove-member/{member_id}")
-def remove_member(member_id: str):
+async def remove_member(member_id: str):
     conn = get_conn()
     cur = conn.cursor()
     try:
