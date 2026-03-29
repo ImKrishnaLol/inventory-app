@@ -1,6 +1,14 @@
 import streamlit as st
 import requests
+import time
 
+def wake_server():
+    try:
+        requests.get(f"{API}/", timeout=5)
+    except:
+        time.sleep(2)
+
+wake_server()
 # =========================
 # CONFIG
 # =========================
