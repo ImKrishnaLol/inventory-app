@@ -268,7 +268,7 @@ elif page == "✏️ Edit Item":
             else:
                 st.error("Failed to update item")
 
-st.divider()
+
 
 # =========================
 # GROUPS PAGE
@@ -334,6 +334,7 @@ elif page == "🗂️ Groups":
                 st.rerun()
             else:
                 st.error("Failed to delete group")
+    st.divider()
 
     # =========================
     # GROUP MEMBERS
