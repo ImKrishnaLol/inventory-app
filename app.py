@@ -67,6 +67,7 @@ elif page == "🗄️ Database Editor":
 
     # Default row template matching Item model defaults
     default_row = {
+        "id": None,  # placeholder; backend will assign UUID for new rows
         "name": "",
         "shop_category": "",
         "unit": "",
@@ -122,30 +123,36 @@ elif page == "🗄️ Database Editor":
             if r.status_code == 200: 
                 show_message("Item deleted!")
                 # Remove deleted item from session_state
-                st.session_state.edited_df = st.session_state.edited_df[st.session_state.edited_df["id"] != item_id].reset_index(drop=True)
+                st.session_state.edited_df = st.session_state.edited_df[
+                    st.session_state.edited_df["id"] != item_id
+                ].reset_index(drop=True)
             else: st.error(r.text)
 
     st.divider()
 
     # =========================
     # SAVE CHANGES BULK
-    # =========================
     st.subheader("💾 Save Changes")
     if st.button("Save Changes"):
         changes = []
         for i, row in edited_df.iterrows():
-            # Existing rows changed
-            if i < len(df) and not row.equals(df.iloc[i]):
-                d = row.to_dict()
-                d["id"] = df.iloc[i]["id"]
-                changes.append(d)
-            # New rows
-            elif i >= len(df) and row["name"]:
-                changes.append(row.to_dict())
+            row_dict = row.to_dict()
+            # Existing row changed
+            if row_dict.get("id") is not None:
+                orig_row = df[df["id"] == row_dict["id"]]
+                if not orig_row.empty and not row.equals(orig_row.iloc[0]):
+                    changes.append(row_dict)
+            # New row
+            elif row_dict.get("name"):
+                changes.append(row_dict)
+
         if changes:
             r = requests.put(f"{API}/update-items", json=changes)
             if r.status_code == 200:
                 show_message("Changes saved!")
+                # Refresh df and edited_df after save
+                df = fetch_items()
+                st.session_state.edited_df = df.copy()
             else:
                 st.error(r.text)
         else:
