@@ -105,35 +105,42 @@ def delete_member(member_id):
     except:
         return False
 
-def render_tree(group_id, level=0, visited=None):
-    if visited is None:
-        visited = set()
+def needs_restock(item):
+    try:
+        return item["current_qty"] <= item["ideal_qty"] * item["low_stock_ratio"]
+    except:
+        return False
 
-    # Prevent infinite loops
-    if group_id in visited:
-        st.write("   " * level + "⚠️ Cycle detected")
-        return
-
-    visited.add(group_id)
-
+def render_group(group_id, items_dict, seen_items, level=0):
     members = fetch_group_members(group_id)
 
     if not members:
-        st.write("   " * level + "• (empty)")
         return
+
+    indent = "   " * level
+
+    group_name = None
+
+    for m in members:
+        if m.get("group_name"):
+            group_name = m["group_name"]
+            break
+
+    if group_name:
+        st.write(f"{indent}📁 **{group_name}**")
 
     for m in members:
         # ITEM
-        if m.get("item_name"):
-            st.write("   " * level + f"📦 {m['item_name']}")
+        if m.get("item_id"):
+            item = items_dict.get(m["item_id"])
+
+            if item and needs_restock(item):
+                seen_items.add(item["id"])
+                st.write(f"{indent}   📦 {item['name']}")
 
         # CHILD GROUP
-        elif m.get("group_name"):
-            st.write("   " * level + f"📁 {m['group_name']}")
-
-            if m.get("child_group_id"):
-                render_tree(m["child_group_id"], level + 1, visited)
-
+        elif m.get("child_group_id"):
+            render_group(m["child_group_id"], items_dict, seen_items, level + 1)
 
 # =========================
 # NAVIGATION
@@ -148,10 +155,40 @@ page = st.sidebar.radio(
 # HOME PAGE
 # =========================
 if page == "🏠 Home":
-    st.title("🏠 Inventory System")
-    st.write("Clean base setup. Features will be added step by step.")
-    st.info("Use the sidebar to navigate.")
+    st.title("🛒 What to Buy")
 
+    items = fetch_items()
+    groups = fetch_groups()
+
+    if not items:
+        st.info("No items available")
+    else:
+        items_dict = {item["id"]: item for item in items}
+        seen_items = set()
+
+        st.subheader("📁 By Groups")
+
+        if groups:
+            for g in groups:
+                render_group(g["id"], items_dict, seen_items)
+
+        st.divider()
+
+        # =========================
+        # STANDALONE ITEMS
+        # =========================
+        st.subheader("📦 Other Items")
+
+        remaining = [
+            item for item in items
+            if item["id"] not in seen_items and needs_restock(item)
+        ]
+
+        if not remaining:
+            st.write("✅ Nothing else needed")
+        else:
+            for item in remaining:
+                st.write(f"📦 {item['name']}")
 # =========================
 # SYSTEM STATUS PAGE
 # =========================
