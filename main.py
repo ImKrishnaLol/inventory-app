@@ -3,7 +3,6 @@ from pydantic import BaseModel, Field
 from uuid import uuid4
 from psycopg2 import pool
 from typing import Optional, List
-import asyncio
 
 # =========================
 # APP & DB POOL
@@ -88,10 +87,23 @@ async def get_items_min():
     release_conn(conn)
     return [{"id": str(r[0]), "name": r[1]} for r in rows]
 
-@app.post("/add")
-async def add_item(item: Item):
+@app.post("/add-item")
+async def add_item():
+    """Add a new item with default values and auto-generated UUID."""
+    default_values = {
+        "name": "",
+        "shop_category": "",
+        "unit": "",
+        "unit_factor": 1,
+        "irreplacable": False,
+        "current_qty": 0,
+        "ideal_qty": 0,
+        "low_stock_ratio": 0.3,
+        "consumption_rate": None
+    }
     conn = get_conn()
     cur = conn.cursor()
+    new_id = str(uuid4())
     try:
         cur.execute("""
             INSERT INTO items (
@@ -100,9 +112,12 @@ async def add_item(item: Item):
                 low_stock_ratio, consumption_rate
             ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         """, (
-            str(uuid4()), item.name, item.shop_category, item.unit,
-            item.unit_factor, item.irreplacable, item.current_qty,
-            item.ideal_qty, item.low_stock_ratio, item.consumption_rate
+            new_id,
+            default_values["name"], default_values["shop_category"],
+            default_values["unit"], default_values["unit_factor"],
+            default_values["irreplacable"], default_values["current_qty"],
+            default_values["ideal_qty"], default_values["low_stock_ratio"],
+            default_values["consumption_rate"]
         ))
         conn.commit()
     except Exception as e:
@@ -111,10 +126,11 @@ async def add_item(item: Item):
     finally:
         cur.close()
         release_conn(conn)
-    return {"message": "Item added"}
+    return {"id": new_id, **default_values}
 
 @app.put("/update-items")
 async def update_items(items: List[Item]):
+    """Update multiple items at once."""
     conn = get_conn()
     cur = conn.cursor()
     try:
@@ -203,9 +219,7 @@ async def delete_group(group_id: str):
     conn = get_conn()
     cur = conn.cursor()
     try:
-        # Remove members first
         cur.execute("DELETE FROM group_members WHERE group_id=%s", (group_id,))
-        # Delete group
         cur.execute("DELETE FROM groups WHERE id=%s", (group_id,))
         if cur.rowcount == 0:
             raise HTTPException(status_code=404, detail="Group not found")
