@@ -187,3 +187,52 @@ def delete_item(item_id: str):
     finally:
         cur.close()
         release_conn(conn)
+
+# =========================
+# UPDATE ITEM
+# =========================
+@app.put("/items/{item_id}")
+def update_item(item_id: str, item: Item):
+    conn = get_conn()
+    cur = conn.cursor()
+
+    try:
+        cur.execute("""
+            UPDATE items SET
+                name=%s,
+                shop_category=%s,
+                unit=%s,
+                unit_factor=%s,
+                irreplacable=%s,
+                current_qty=%s,
+                ideal_qty=%s,
+                low_stock_ratio=%s,
+                consumption_rate=%s,
+                last_updated=NOW()
+            WHERE id=%s
+        """, (
+            item.name,
+            item.shop_category,
+            item.unit,
+            item.unit_factor,
+            item.irreplacable,
+            item.current_qty,
+            item.ideal_qty,
+            item.low_stock_ratio,
+            item.consumption_rate,
+            item_id
+        ))
+
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Item not found")
+
+        conn.commit()
+        return {"message": "Item updated"}
+
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+
+    finally:
+        cur.close()
+        release_conn(conn)
