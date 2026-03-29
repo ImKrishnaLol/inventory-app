@@ -163,6 +163,10 @@ def add_item(item: Item):
         conn.rollback()
         raise HTTPException(status_code=400, detail=str(e))
 
+    finally:
+        cur.close()
+        release_conn(conn)
+
 # =========================
 # DELETE ITEM
 # =========================
