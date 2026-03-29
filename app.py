@@ -4,7 +4,7 @@ import requests
 # =========================
 # CONFIG
 # =========================
-API = "http://127.0.0.1:8000"
+API = "https://inventory-app-mi1m.onrender.com"
 
 st.set_page_config(page_title="Inventory System", layout="wide")
 
