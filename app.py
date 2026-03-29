@@ -74,6 +74,27 @@ def delete_group(group_id):
     except:
         return False
 
+def fetch_group_members(group_id):
+    try:
+        r = requests.get(f"{API}/groups/{group_id}/members")
+        return r.json() if r.status_code == 200 else []
+    except:
+        return []
+
+def add_member(group_id, data):
+    try:
+        r = requests.post(f"{API}/groups/{group_id}/members", json=data)
+        return r.status_code == 200
+    except:
+        return False
+
+def delete_member(member_id):
+    try:
+        r = requests.delete(f"{API}/members/{member_id}")
+        return r.status_code == 200
+    except:
+        return False
+
 # =========================
 # NAVIGATION
 # =========================
@@ -311,3 +332,59 @@ elif page == "🗂️ Groups":
                 st.rerun()
             else:
                 st.error("Failed to delete group")
+    st.divider()
+
+    # =========================
+    # GROUP MEMBERS
+    # =========================
+    st.subheader("🔗 Manage Members")
+    
+    if groups:
+        group_map = {g["name"]: g["id"] for g in groups}
+        selected_group_name = st.selectbox("Select Group", list(group_map.keys()), key="member_group")
+        selected_group_id = group_map[selected_group_name]
+    
+        # ---- Add Item ----
+        st.subheader("➕ Add Item to Group")
+    
+        items = fetch_items()
+        item_map = {i["name"]: i["id"] for i in items} if items else {}
+    
+        if item_map:
+            selected_item_name = st.selectbox("Select Item", list(item_map.keys()))
+            
+            if st.button("Add Item"):
+                success = add_member(selected_group_id, {
+                    "group_id": selected_group_id,
+                    "item_id": item_map[selected_item_name],
+                    "child_group_id": None
+                })
+    
+                if success:
+                    st.success(f"Added '{selected_item_name}' to group")
+                    st.rerun()
+                else:
+                    st.error("Failed to add member")
+    
+        # ---- View Members ----
+        st.subheader("📄 Members")
+    
+        members = fetch_group_members(selected_group_id)
+    
+        if not members:
+            st.info("No members in this group")
+        else:
+            for m in members:
+                name = m["item_name"] or f"[Group] {m['group_name']}"
+    
+                col1, col2 = st.columns([3,1])
+                col1.write(name)
+    
+                if col2.button("Remove", key=m["id"]):
+                    success = delete_member(m["id"])
+    
+                    if success:
+                        st.success(f"Removed '{name}'")
+                        st.rerun()
+                    else:
+                        st.error("Failed to remove member")
