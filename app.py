@@ -53,6 +53,26 @@ def update_item(item_id, item_data):
     except:
         return False
 
+def fetch_groups():
+    try:
+        r = requests.get(f"{API}/groups")
+        return r.json() if r.status_code == 200 else []
+    except:
+        return []
+
+def create_group(data):
+    try:
+        r = requests.post(f"{API}/groups", json=data)
+        return r.json() if r.status_code == 200 else None
+    except:
+        return None
+
+def delete_group(group_id):
+    try:
+        r = requests.delete(f"{API}/groups/{group_id}")
+        return r.status_code == 200
+    except:
+        return False
 
 # =========================
 # NAVIGATION
@@ -60,7 +80,7 @@ def update_item(item_id, item_data):
 st.sidebar.title("Navigation")
 page = st.sidebar.radio(
     "Go to",
-    ["🏠 Home", "⚙️ System Status", "📦 Items", "➕ Add Item", "✏️ Edit Item"]
+    ["🏠 Home", "⚙️ System Status", "📦 Items", "➕ Add Item", "✏️ Edit Item", "🗂️ Groups"]
 )
 
 # =========================
@@ -226,3 +246,67 @@ elif page == "✏️ Edit Item":
                 st.rerun()
             else:
                 st.error("Failed to update item")
+
+# =========================
+# GROUPS PAGE
+# =========================
+elif page == "🗂️ Groups":
+    st.title("🗂️ Groups")
+
+    groups = fetch_groups()
+
+    # ---------------------
+    # VIEW GROUPS
+    # ---------------------
+    st.subheader("📋 Existing Groups")
+
+    if not groups:
+        st.info("No groups found")
+    else:
+        for g in groups:
+            st.write(f"- {g['name']}")
+
+    st.divider()
+
+    # ---------------------
+    # ADD GROUP
+    # ---------------------
+    st.subheader("➕ Add Group")
+
+    new_name = st.text_input("Group Name")
+    new_irreplacable = st.checkbox("Irreplacable")
+
+    if st.button("Create Group"):
+        if not new_name:
+            st.error("Name required")
+        else:
+            result = create_group({
+                "name": new_name,
+                "irreplacable": new_irreplacable
+            })
+
+            if result:
+                st.success(f"Group '{new_name}' created")
+                st.rerun()
+            else:
+                st.error("Failed to create group")
+
+    st.divider()
+
+    # ---------------------
+    # DELETE GROUP
+    # ---------------------
+    st.subheader("🗑️ Delete Group")
+
+    if groups:
+        group_map = {g["name"]: g["id"] for g in groups}
+        selected = st.selectbox("Select group", list(group_map.keys()))
+
+        if st.button("Delete Group"):
+            success = delete_group(group_map[selected])
+
+            if success:
+                st.success(f"Group '{selected}' deleted")
+                st.rerun()
+            else:
+                st.error("Failed to delete group")
