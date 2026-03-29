@@ -58,8 +58,10 @@ if page=="🏠 Main Menu":
 # =========================
 # DATABASE EDITOR
 # =========================
-elif page=="🗄️ Database Editor":
+elif page == "🗄️ Database Editor":
     st.title("🗄️ Database Editor")
+    
+    # Fetch live items
     df_future = executor.submit(fetch_items)
     df = df_future.result()
 
@@ -77,46 +79,77 @@ elif page=="🗄️ Database Editor":
         "last_updated": ""
     }
 
-    if df.empty:
-        st.warning("No data found.")
-        # Start with one default row
-        df = pd.DataFrame([default_row])
-    
-    st.subheader("📊 Live Table")
-    edited_df = st.data_editor(df, num_rows="dynamic", use_container_width=True)
+    # =========================
+    # Initialize session_state
+    if "edited_df" not in st.session_state:
+        if df.empty:
+            st.session_state.edited_df = pd.DataFrame([default_row])
+        else:
+            st.session_state.edited_df = df.copy()
 
-    # ➕ ADD NEW ROW BUTTON
+    # =========================
+    # Add New Row Button
+    st.subheader("➕ Add New Row")
     if st.button("➕ Add New Row"):
-        # Append a new row with defaults
-        edited_df = pd.concat([edited_df, pd.DataFrame([default_row])], ignore_index=True)
-        st.rerun()  # rerun to update the editor with the new row
+        st.session_state.edited_df = pd.concat(
+            [st.session_state.edited_df, pd.DataFrame([default_row])],
+            ignore_index=True
+        )
+        st.rerun()
+
+    # =========================
+    # Show Live Table Editor
+    st.subheader("📊 Live Table")
+    edited_df = st.data_editor(
+        st.session_state.edited_df,
+        num_rows="dynamic",
+        use_container_width=True
+    )
+
+    # Save changes back to session_state
+    st.session_state.edited_df = edited_df
 
     st.divider()
     
+    # =========================
     # DELETE ITEM
     st.subheader("🗑️ Delete Item")
     if not df.empty:
         item_to_delete = st.selectbox("Select item", df["name"])
         if st.button("Delete"):
-            item_id = df[df["name"]==item_to_delete]["id"].values[0]
+            item_id = df[df["name"] == item_to_delete]["id"].values[0]
             r = requests.delete(f"{API}/delete-item/{item_id}")
-            if r.status_code==200: show_message("Item deleted!")
+            if r.status_code == 200: 
+                show_message("Item deleted!")
+                # Remove deleted item from session_state
+                st.session_state.edited_df = st.session_state.edited_df[st.session_state.edited_df["id"] != item_id].reset_index(drop=True)
             else: st.error(r.text)
 
     st.divider()
-    
+
+    # =========================
     # SAVE CHANGES BULK
-    if st.button("💾 Save Changes"):
-        changes=[]
-        for i,row in edited_df.iterrows():
-            if i<len(df) and not row.equals(df.iloc[i]):
-                d=row.to_dict(); d["id"]=df.iloc[i]["id"]; changes.append(d)
-            elif i>=len(df) and row["name"]: changes.append(row.to_dict())
+    # =========================
+    st.subheader("💾 Save Changes")
+    if st.button("Save Changes"):
+        changes = []
+        for i, row in edited_df.iterrows():
+            # Existing rows changed
+            if i < len(df) and not row.equals(df.iloc[i]):
+                d = row.to_dict()
+                d["id"] = df.iloc[i]["id"]
+                changes.append(d)
+            # New rows
+            elif i >= len(df) and row["name"]:
+                changes.append(row.to_dict())
         if changes:
-            r=requests.put(f"{API}/update-items", json=changes)
-            if r.status_code==200: show_message("Changes saved!")
-            else: st.error(r.text)
-        else: st.info("No changes detected.")
+            r = requests.put(f"{API}/update-items", json=changes)
+            if r.status_code == 200:
+                show_message("Changes saved!")
+            else:
+                st.error(r.text)
+        else:
+            st.info("No changes detected.")
 
 # =========================
 # GROUPS MANAGER
