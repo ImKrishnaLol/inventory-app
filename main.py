@@ -34,7 +34,8 @@ class Item(BaseModel):
     current_qty: int = Field(0, ge=0)
     ideal_qty: int = Field(..., ge=0)
     low_stock_ratio: float = Field(0.3, ge=0, le=1)
-    consumption_rate: Optional[float] = Field(default=None, gt=0)
+    consumption_rate: Optional[float] = Field(default=0.01, gt=0)
+    last_updated: Optional[str] = ""
 
 class Group(BaseModel):
     id: Optional[str]
@@ -80,7 +81,9 @@ async def get_items_min():
 @app.post("/add-item")
 async def add_item(item: Item):
     conn = get_conn(); cur = conn.cursor()
-    new_id = str(uuid4())
+    item_id = item.id or str(uuid4())
+    if not item.consumption_rate or item.consumption_rate <= 0:
+        item.consumption_rate = 0.01
     try:
         cur.execute("""
             INSERT INTO items (
@@ -89,7 +92,7 @@ async def add_item(item: Item):
                 low_stock_ratio, consumption_rate
             ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         """, (
-            new_id, item.name, item.shop_category, item.unit, item.unit_factor,
+            item_id, item.name, item.shop_category, item.unit, item.unit_factor,
             item.irreplacable, item.current_qty, item.ideal_qty,
             item.low_stock_ratio, item.consumption_rate
         ))
@@ -97,16 +100,13 @@ async def add_item(item: Item):
     except Exception as e:
         conn.rollback(); raise HTTPException(status_code=400, detail=str(e))
     finally: cur.close(); release_conn(conn)
-    return {
-        "id": new_id, **item.dict(), "last_updated": ""
-    }
+    return {**item.dict(), "id": item_id, "last_updated": ""}
 
 @app.put("/update-items")
-async def update_items(items: List[dict]):
+async def update_items(items: List[Item]):
     conn = get_conn(); cur = conn.cursor()
     try:
         for item in items:
-            if "id" not in item: continue
             cur.execute("""
                 UPDATE items SET
                     name=%s, shop_category=%s, unit=%s, unit_factor=%s,
@@ -115,9 +115,9 @@ async def update_items(items: List[dict]):
                     last_updated=NOW()
                 WHERE id=%s
             """, (
-                item.get("name"), item.get("shop_category"), item.get("unit"), item.get("unit_factor"),
-                item.get("irreplacable"), item.get("current_qty"), item.get("ideal_qty"),
-                item.get("low_stock_ratio"), item.get("consumption_rate"), item.get("id")
+                item.name, item.shop_category, item.unit, item.unit_factor,
+                item.irreplacable, item.current_qty, item.ideal_qty,
+                item.low_stock_ratio, item.consumption_rate, item.id
             ))
         conn.commit()
     except Exception as e:
@@ -158,13 +158,14 @@ async def get_groups_min():
 async def add_group(group: Group):
     conn = get_conn(); cur = conn.cursor()
     try:
+        group_id = str(uuid4())
         cur.execute("INSERT INTO groups (id, name, irreplacable) VALUES (%s,%s,%s)",
-                    (str(uuid4()), group.name, group.irreplacable))
+                    (group_id, group.name, group.irreplacable))
         conn.commit()
     except Exception as e:
         conn.rollback(); raise HTTPException(status_code=400, detail=str(e))
     finally: cur.close(); release_conn(conn)
-    return {"message": "Group added"}
+    return {"id": group_id, **group.dict()}
 
 @app.delete("/delete-group/{group_id}")
 async def delete_group(group_id: str):
