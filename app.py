@@ -112,51 +112,24 @@ def needs_restock(item):
 # =========================
 # BACKGROUND UPDATE
 # =========================
-def update_qty_background(item_id, new_qty):
-    """Send the update to backend in a thread."""
+def update_qty_background(item_id: int, new_qty: int):
+    """Update the backend quantity in a separate thread."""
     def _update():
         update_item(item_id, {"current_qty": new_qty})
     threading.Thread(target=_update, daemon=True).start()
-
-# =========================
-# SAFE SESSION_STATE HELPER
-# =========================
-def set_qty(key_name, value, item):
-    """Safely update session state and trigger background update."""
-    st.session_state[key_name] = value
-    item_copy = item.copy()
-    item_copy["current_qty"] = value
-    update_qty_background(item_copy)
-
-# =========================
-# SAFE BUTTON CALLBACKS
-# =========================
-def set_qty_callback(item_id, value):
-    key_name = f"qty_{item_id}"
-    if key_name not in st.session_state:
-        st.session_state[key_name] = value
-    else:
-        st.session_state[key_name] = value
-
-    # Update in background
-    item = next((i for i in st.session_state.get("all_items", []) if i["id"] == item_id), None)
-    if item:
-        item_copy = item.copy()
-        item_copy["current_qty"] = value
-        update_qty_background(item_copy)
 
 
 # =========================
 # ITEM NODE COMPONENT
 # =========================
 def render_item_node(item):
+    key_name = f"qty_{item['id']}"
+
+    # Initialize session state
+    if key_name not in st.session_state:
+        st.session_state[key_name] = int(item.get("current_qty", 0))
+
     with st.expander(f"📦 {item['name']}", expanded=False):
-        key_name = f"qty_{item['id']}"
-
-        # Initialize session state
-        if key_name not in st.session_state:
-            st.session_state[key_name] = int(item.get("current_qty", 0))
-
         # Number input
         new_qty = st.number_input(
             "Update Quantity",
@@ -167,19 +140,19 @@ def render_item_node(item):
         )
 
         # Detect manual change
-        if new_qty != item.get("current_qty"):
+        if new_qty != st.session_state[key_name]:
             st.session_state[key_name] = new_qty
             update_qty_background(item["id"], new_qty)
 
         # Quick buttons
         col1, col2 = st.columns(2)
 
-        # Set to 0
+        # Set to 0 button
         if col1.button("Set to 0", key=f"zero_{item['id']}"):
             st.session_state[key_name] = 0
             update_qty_background(item["id"], 0)
 
-        # Set to Ideal
+        # Set to Ideal button
         ideal_qty = int(item.get("ideal_qty") or 0)
         if col2.button("Set to Ideal", key=f"ideal_{item['id']}"):
             st.session_state[key_name] = ideal_qty
