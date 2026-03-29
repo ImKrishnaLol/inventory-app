@@ -101,7 +101,7 @@ elif page == "➕ Add Item":
     st.title("➕ Add Item")
 
     name = st.text_input("Name")
-    category = st.text_input("Shop Category")
+    category = st.text_input("Shop Category",value="Groceries")
     unit = st.text_input("Unit")
 
     unit_factor = st.number_input("Unit Factor", min_value=1, value=1)
