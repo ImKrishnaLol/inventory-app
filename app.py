@@ -2,6 +2,7 @@ import streamlit as st
 import requests
 import time
 from datetime import datetime
+import threading
 
 # =========================
 # CONFIG
@@ -108,51 +109,60 @@ def delete_member(member_id):
 def needs_restock(item):
     return True
 
+def update_qty_background(item_id, new_qty):
+    """Call backend to update quantity in the background."""
+    def _update():
+        update_item(item_id, {"current_qty": new_qty})
+    threading.Thread(target=_update, daemon=True).start()
+
 # =========================
 # REUSABLE COMPONENTS
 # =========================
 def render_item_node(item):
-    """Display a single item in an expandable node for shopping list use."""
+    """Interactive item node for shopping list."""
     with st.expander(f"📦 {item['name']}", expanded=False):
 
-        # 1️⃣ Estimated quantity (placeholder)
+        # Estimated quantity (placeholder)
         st.write(f"Estimated quantity: ⚪")  # Placeholder
 
-        # 2️⃣ Last updated quantity (with unit)
+        # Last updated quantity (with unit)
         quantity = item["current_qty"] * item["unit_factor"]
         st.write(f"Last updated quantity: {quantity} {item['unit']}")
 
-        # 3️⃣ Last updated timestamp
+        # Last updated timestamp
         last_updated = item.get("last_updated")
-        if last_updated:
-            try:
-                dt = datetime.fromisoformat(last_updated)
-                formatted = dt.strftime("%H:%M, %d %b %Y")
-            except:
-                formatted = str(last_updated)
-        else:
-            formatted = "—"
+        formatted = (
+            datetime.fromisoformat(last_updated).strftime("%H:%M, %d %b %Y")
+            if last_updated else "—"
+        )
         st.write(f"Last updated: {formatted}")
 
-        # 4️⃣ Quantity input
+        # Number input for current quantity
+        key_name = f"qty_{item['id']}"
+        if key_name not in st.session_state:
+            st.session_state[key_name] = item["current_qty"]
+
         new_qty = st.number_input(
             "Update Quantity",
             min_value=0,
-            value=item["current_qty"],
+            value=st.session_state[key_name],
             step=1,
-            key=f"qty_{item['id']}"
+            key=key_name
         )
 
-        # Update quantity automatically when changed
-        if new_qty != item["current_qty"]:
-            update_item(item["id"], {"current_qty": new_qty})
+        # Detect change and save in background
+        if new_qty != st.session_state[key_name]:
+            st.session_state[key_name] = new_qty
+            update_qty_background(item["id"], new_qty)
 
-        # 5️⃣ Quick buttons for convenience
+        # Quick buttons
         col1, col2 = st.columns(2)
         if col1.button("Set to 0", key=f"zero_{item['id']}"):
-            update_item(item["id"], {"current_qty": 0})
+            st.session_state[key_name] = 0
+            update_qty_background(item["id"], 0)
         if col2.button("Set to Ideal", key=f"ideal_{item['id']}"):
-            update_item(item["id"], {"current_qty": item["ideal_qty"]})
+            st.session_state[key_name] = item["ideal_qty"]
+            update_qty_background(item["id"], item["ideal_qty"])
 
 def render_tree(group_id, group_name, items_dict, visited=None):
     """Recursive function to display group tree."""
