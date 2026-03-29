@@ -75,3 +75,43 @@ def test_db():
     finally:
         cur.close()
         release_conn(conn)
+        
+# =========================
+# GET ITEMS (READ ONLY)
+# =========================
+@app.get("/items")
+def get_items():
+    conn = get_conn()
+    cur = conn.cursor()
+
+    try:
+        cur.execute("""
+            SELECT 
+                id, name, shop_category, unit, unit_factor,
+                irreplacable, current_qty, ideal_qty,
+                low_stock_ratio, consumption_rate, last_updated
+            FROM items
+            ORDER BY name
+        """)
+        rows = cur.fetchall()
+
+        return [
+            {
+                "id": str(r[0]),
+                "name": r[1],
+                "shop_category": r[2],
+                "unit": r[3],
+                "unit_factor": r[4],
+                "irreplacable": r[5],
+                "current_qty": r[6],
+                "ideal_qty": r[7],
+                "low_stock_ratio": r[8],
+                "consumption_rate": r[9],
+                "last_updated": str(r[10]) if r[10] else ""
+            }
+            for r in rows
+        ]
+
+    finally:
+        cur.close()
+        release_conn(conn)
