@@ -120,43 +120,40 @@ def update_qty_background(item_id: int, new_qty: int):
 
 
 # =========================
-# ITEM NODE COMPONENT
+# ITEM NODE COMPONENT (Fixed)
 # =========================
 def render_item_node(item):
     key_name = f"qty_{item['id']}"
 
-    # Initialize session state
     if key_name not in st.session_state:
         st.session_state[key_name] = int(item.get("current_qty", 0))
 
+    def update_qty(new_qty: int):
+        st.session_state[key_name] = new_qty
+        update_qty_background(item["id"], new_qty)
+
     with st.expander(f"📦 {item['name']}", expanded=False):
-        # Number input
+        # Number input with callback
         new_qty = st.number_input(
             "Update Quantity",
             min_value=0,
             value=st.session_state[key_name],
             step=1,
-            key=key_name
+            key=f"input_{item['id']}",
+            on_change=lambda: update_qty(st.session_state[f"input_{item['id']}"])
         )
-
-        # Detect manual change
-        if new_qty != st.session_state[key_name]:
-            st.session_state[key_name] = new_qty
-            update_qty_background(item["id"], new_qty)
 
         # Quick buttons
         col1, col2 = st.columns(2)
 
-        # Set to 0 button
         if col1.button("Set to 0", key=f"zero_{item['id']}"):
-            st.session_state[key_name] = 0
-            update_qty_background(item["id"], 0)
+            update_qty(0)
+            st.rerun()
 
-        # Set to Ideal button
         ideal_qty = int(item.get("ideal_qty") or 0)
         if col2.button("Set to Ideal", key=f"ideal_{item['id']}"):
-            st.session_state[key_name] = ideal_qty
-            update_qty_background(item["id"], ideal_qty)
+            update_qty(ideal_qty)
+            st.rerun()
 
 def render_tree(group_id, group_name, items_dict, visited=None):
     """Recursive function to display group tree."""
@@ -202,7 +199,7 @@ page = st.sidebar.radio(
 )
 
 # =========================
-# HOME PAGE
+# HOME PAGE (Fixed)
 # =========================
 if page == "🏠 Home":
     st.title("🛒 Shopping Overview")
