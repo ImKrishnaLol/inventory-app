@@ -271,131 +271,201 @@ elif page == "✏️ Edit Item":
 st.divider()
 
 # =========================
-# GROUP MEMBERS
+# GROUPS PAGE
 # =========================
-st.subheader("🔗 Manage Members")
+elif page == "🗂️ Groups":
+    st.title("🗂️ Groups")
 
-if groups:
-    # ---------------------
-    # SELECT GROUP
-    # ---------------------
-    group_map = {g["name"]: g["id"] for g in groups}
-    selected_group_name = st.selectbox(
-        "Select Group",
-        list(group_map.keys()),
-        key="member_group"
-    )
-    selected_group_id = group_map[selected_group_name]
-
-    st.divider()
+    groups = fetch_groups()
 
     # ---------------------
-    # ADD MEMBER
+    # VIEW GROUPS
     # ---------------------
-    st.subheader("➕ Add to Group")
+    st.subheader("📋 Existing Groups")
 
-    member_type = st.radio("Type", ["Item", "Group"], horizontal=True)
-
-    # ===== ADD ITEM =====
-    if member_type == "Item":
-        items = fetch_items()
-        item_map = {i["name"]: i["id"] for i in items} if items else {}
-
-        if item_map:
-            selected_item_name = st.selectbox(
-                "Select Item",
-                list(item_map.keys()),
-                key="add_item_select"
-            )
-
-            if st.button("Add Item"):
-                success = add_member(selected_group_id, {
-                    "group_id": selected_group_id,
-                    "item_id": item_map[selected_item_name],
-                    "child_group_id": None
-                })
-
-                if success:
-                    st.success(f"Added '{selected_item_name}'")
-                    st.rerun()
-                else:
-                    st.error("Failed to add item")
-        else:
-            st.info("No items available")
-
-    # ===== ADD GROUP =====
-    elif member_type == "Group":
-        group_map_full = {g["name"]: g["id"] for g in groups}
-
-        available_groups = {
-            name: gid for name, gid in group_map_full.items()
-            if gid != selected_group_id
-        }
-
-        if available_groups:
-            selected_child_name = st.selectbox(
-                "Select Group",
-                list(available_groups.keys()),
-                key="add_group_select"
-            )
-
-            if st.button("Add Group"):
-                success = add_member(selected_group_id, {
-                    "group_id": selected_group_id,
-                    "item_id": None,
-                    "child_group_id": available_groups[selected_child_name]
-                })
-
-                if success:
-                    st.success(f"Added group '{selected_child_name}'")
-                    st.rerun()
-                else:
-                    st.error("Failed to add group")
-        else:
-            st.info("No other groups available")
-
-    st.divider()
-
-    # ---------------------
-    # VIEW MEMBERS
-    # ---------------------
-    st.subheader("📄 Members")
-
-    members = fetch_group_members(selected_group_id)
-
-    if not members:
-        st.info("No members in this group")
+    if not groups:
+        st.info("No groups found")
     else:
-        for m in members:
-            name = m["item_name"] or f"[Group] {m['group_name']}"
+        for g in groups:
+            st.write(f"- {g['name']}")
 
-            col1, col2 = st.columns([3, 1])
-            col1.write(name)
+    st.divider()
 
-            if col2.button("Remove", key=f"remove_{m['id']}"):
-                success = delete_member(m["id"])
+    # ---------------------
+    # ADD GROUP
+    # ---------------------
+    st.subheader("➕ Add Group")
 
-                if success:
-                    st.success(f"Removed '{name}'")
-                    st.rerun()
-                else:
-                    st.error("Failed to remove member")
+    new_name = st.text_input("Group Name")
+    new_irreplacable = st.checkbox("Irreplacable")
 
-# =========================
-# TREE VIEW (OUTSIDE MEMBER BLOCK)
-# =========================
-st.divider()
-st.subheader("🌳 Group Tree View")
+    if st.button("Create Group"):
+        if not new_name:
+            st.error("Name required")
+        else:
+            result = create_group({
+                "id": None,
+                "name": new_name,
+                "irreplacable": new_irreplacable
+            })
 
-if groups:
-    group_map = {g["name"]: g["id"] for g in groups}
+            if result:
+                st.success(f"Group '{new_name}' created")
+                st.rerun()
+            else:
+                st.error("Failed to create group")
 
-    selected_root = st.selectbox(
-        "Select Root Group",
-        list(group_map.keys()),
-        key="tree_root"
-    )
+    st.divider()
 
+    # ---------------------
+    # DELETE GROUP
+    # ---------------------
+    st.subheader("🗑️ Delete Group")
+
+    if groups:
+        group_map = {g["name"]: g["id"] for g in groups}
+        selected = st.selectbox("Select group", list(group_map.keys()), key="delete_group")
+
+        if st.button("Delete Group"):
+            success = delete_group(group_map[selected])
+
+            if success:
+                st.success(f"Group '{selected}' deleted")
+                st.rerun()
+            else:
+                st.error("Failed to delete group")
+
+    st.divider()
+
+    # =========================
+    # GROUP MEMBERS
+    # =========================
+    st.subheader("🔗 Manage Members")
+
+    if groups:
+        # ---------------------
+        # SELECT GROUP
+        # ---------------------
+        group_map = {g["name"]: g["id"] for g in groups}
+        selected_group_name = st.selectbox(
+            "Select Group",
+            list(group_map.keys()),
+            key="member_group"
+        )
+        selected_group_id = group_map[selected_group_name]
+
+        st.divider()
+
+        # ---------------------
+        # ADD MEMBER
+        # ---------------------
+        st.subheader("➕ Add to Group")
+
+        member_type = st.radio("Type", ["Item", "Group"], horizontal=True)
+
+        # ===== ADD ITEM =====
+        if member_type == "Item":
+            items = fetch_items()
+            item_map = {i["name"]: i["id"] for i in items} if items else {}
+
+            if item_map:
+                selected_item_name = st.selectbox(
+                    "Select Item",
+                    list(item_map.keys()),
+                    key="add_item_select"
+                )
+
+                if st.button("Add Item"):
+                    success = add_member(selected_group_id, {
+                        "group_id": selected_group_id,
+                        "item_id": item_map[selected_item_name],
+                        "child_group_id": None
+                    })
+
+                    if success:
+                        st.success(f"Added '{selected_item_name}'")
+                        st.rerun()
+                    else:
+                        st.error("Failed to add item")
+            else:
+                st.info("No items available")
+
+        # ===== ADD GROUP (NESTED) =====
+        elif member_type == "Group":
+            group_map_full = {g["name"]: g["id"] for g in groups}
+
+            available_groups = {
+                name: gid for name, gid in group_map_full.items()
+                if gid != selected_group_id
+            }
+
+            if available_groups:
+                selected_child_name = st.selectbox(
+                    "Select Group",
+                    list(available_groups.keys()),
+                    key="add_group_select"
+                )
+
+                if st.button("Add Group"):
+                    success = add_member(selected_group_id, {
+                        "group_id": selected_group_id,
+                        "item_id": None,
+                        "child_group_id": available_groups[selected_child_name]
+                    })
+
+                    if success:
+                        st.success(f"Added group '{selected_child_name}'")
+                        st.rerun()
+                    else:
+                        st.error("Failed to add group")
+            else:
+                st.info("No other groups available")
+
+        st.divider()
+
+        # ---------------------
+        # VIEW MEMBERS
+        # ---------------------
+        st.subheader("📄 Members")
+
+        members = fetch_group_members(selected_group_id)
+
+        if not members:
+            st.info("No members in this group")
+        else:
+            for m in members:
+                name = m["item_name"] or f"[Group] {m['group_name']}"
+
+                col1, col2 = st.columns([3, 1])
+                col1.write(name)
+
+                if col2.button("Remove", key=f"remove_{m['id']}"):
+                    success = delete_member(m["id"])
+
+                    if success:
+                        st.success(f"Removed '{name}'")
+                        st.rerun()
+                    else:
+                        st.error("Failed to remove member")
+
+    # =========================
+    # TREE VIEW
+    # =========================
+    st.divider()
+    st.subheader("🌳 Group Tree View")
+
+    if groups:
+        group_map = {g["name"]: g["id"] for g in groups}
+
+        selected_root = st.selectbox(
+            "Select Root Group",
+            list(group_map.keys()),
+            key="tree_root"
+        )
+
+        st.write("### Structure")
+
+        render_tree(group_map[selected_root])
     st.write("### Structure")
 
     render_tree(group_map[selected_root])
