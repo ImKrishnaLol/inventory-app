@@ -464,4 +464,4 @@ elif page == "🗂️ Groups":
 
         st.write("### Structure")
 
-        #render_tree(group_map[selected_root])
+        render_tree(group_map[selected_root])
