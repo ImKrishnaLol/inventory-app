@@ -111,7 +111,7 @@ elif page == "➕ Add Item":
     ideal_qty = st.number_input("Ideal Quantity", min_value=0, value=0)
 
     low_stock_ratio = st.slider("Low Stock Ratio", 0.0, 1.0, 0.3)
-    consumption_rate = st.number_input("Consumption Rate", min_value=0.0001, value=0.01)
+    consumption_rate = st.number_input("Consumption Rate", min_value=0, value=30)
 
     if st.button("Add Item"):
         if not name:
