@@ -108,11 +108,10 @@ def delete_member(member_id):
 def needs_restock(item):
     return True
 
-def render_tree(group_id, items_dict, visited=None):
+def render_tree(group_id, group_name, items_dict, visited=None):
     if visited is None:
         visited = set()
 
-    # Prevent infinite loops
     if group_id in visited:
         st.warning("Cycle detected")
         return
@@ -121,23 +120,12 @@ def render_tree(group_id, items_dict, visited=None):
 
     members = fetch_group_members(group_id)
 
-    if not members:
-        st.write("• (empty)")
-        return
-
-    # Find group name
-    group_name = None
-    for m in members:
-        if m.get("group_name"):
-            group_name = m["group_name"]
-            break
-
-    # Fallback name
-    if not group_name:
-        group_name = "Unnamed Group"
-
     # 🔽 COLLAPSIBLE NODE
     with st.expander(f"📁 {group_name}", expanded=False):
+
+        if not members:
+            st.write("• (empty)")
+            return
 
         for m in members:
 
@@ -150,7 +138,14 @@ def render_tree(group_id, items_dict, visited=None):
 
             # 📁 CHILD GROUP
             elif m.get("child_group_id"):
-                render_tree(m["child_group_id"], items_dict, visited.copy())
+                child_name = m.get("group_name", "Unnamed Group")
+
+                render_tree(
+                    m["child_group_id"],
+                    child_name,
+                    items_dict,
+                    visited.copy()
+                )
 # =========================
 # NAVIGATION
 # =========================
@@ -179,7 +174,7 @@ if page == "🏠 Home":
 
         if groups:
             for g in groups:
-                render_tree(g["id"], items_dict)
+                render_tree(g["id"], g["name"], items_dict)
 
         st.divider()
 
