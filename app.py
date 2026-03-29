@@ -120,7 +120,7 @@ def render_tree(group_id, group_name, items_dict, visited=None):
 
     members = fetch_group_members(group_id)
 
-    # 🔽 COLLAPSIBLE NODE
+    # 🔽 COLLAPSIBLE NODE FOR THE GROUP
     with st.expander(f"📁 {group_name}", expanded=False):
 
         if not members:
@@ -134,7 +134,11 @@ def render_tree(group_id, group_name, items_dict, visited=None):
                 item = items_dict.get(m["item_id"])
 
                 if item and needs_restock(item):
-                    st.write(f"📦 {item['name']}")
+                    # Expandable item with quantity inside
+                    with st.expander(f"📦 {item['name']}", expanded=False):
+                        st.write(f"Quantity: {item['current_qty']}")
+
+                        # Here we can later add buttons like +1, -1, etc.
 
             # 📁 CHILD GROUP
             elif m.get("child_group_id"):
