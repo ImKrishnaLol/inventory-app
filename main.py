@@ -1,26 +1,39 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from uuid import uuid4
-import psycopg2
+from psycopg2 import pool
+from typing import Optional, List
+import datetime
 
+# =========================
+# 🔌 APP SETUP
+# =========================
 app = FastAPI(title="Inventory + Groups API")
 
 # =========================
-# 🔌 DATABASE CONNECTION
+# 🏗 DATABASE POOL
 # =========================
+conn_pool = pool.SimpleConnectionPool(
+    minconn=1,
+    maxconn=10,
+    host="aws-1-ap-southeast-1.pooler.supabase.com",
+    database="postgres",
+    user="postgres.nqbjmarcjrzfkmtfbqsd",
+    password="KG12.,kg120608",
+    port="6543"
+)
+
 def get_conn():
-    return psycopg2.connect(
-        host="aws-1-ap-southeast-1.pooler.supabase.com",
-        database="postgres",
-        user="postgres.nqbjmarcjrzfkmtfbqsd",
-        password="KG12.,kg120608",
-        port="6543"
-    )
+    return conn_pool.getconn()
+
+def release_conn(conn):
+    conn_pool.putconn(conn)
 
 # =========================
 # 📦 DATA MODELS
 # =========================
 class Item(BaseModel):
+    id: Optional[str] = None
     name: str
     shop_category: str
     unit: str
@@ -29,16 +42,17 @@ class Item(BaseModel):
     current_qty: int = Field(0, ge=0)
     ideal_qty: int = Field(..., ge=0)
     low_stock_ratio: float = Field(0.3, ge=0, le=1)
-    consumption_rate: float | None = Field(default=None, gt=0)
+    consumption_rate: Optional[float] = Field(default=None, gt=0)
 
 class Group(BaseModel):
+    id: Optional[str] = None
     name: str
     irreplacable: bool = False
 
 class GroupMember(BaseModel):
     group_id: str
-    item_id: str | None = None
-    child_group_id: str | None = None
+    item_id: Optional[str] = None
+    child_group_id: Optional[str] = None
 
 # =========================
 # 🏠 ROOT
@@ -57,7 +71,7 @@ def get_items():
     cur.execute("SELECT * FROM items ORDER BY name")
     rows = cur.fetchall()
     cur.close()
-    conn.close()
+    release_conn(conn)
     return [
         {
             "id": str(r[0]),
@@ -71,9 +85,19 @@ def get_items():
             "low_stock_ratio": r[8],
             "consumption_rate": r[9],
             "last_updated": str(r[10])
-        }
-        for r in rows
+        } for r in rows
     ]
+
+@app.get("/items-min")
+def get_items_min():
+    """Only return id and name for dropdowns."""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT id, name FROM items ORDER BY name")
+    rows = cur.fetchall()
+    cur.close()
+    release_conn(conn)
+    return [{"id": str(r[0]), "name": r[1]} for r in rows]
 
 @app.post("/add")
 def add_item(item: Item):
@@ -100,39 +124,41 @@ def add_item(item: Item):
         raise HTTPException(status_code=400, detail=str(e))
     finally:
         cur.close()
-        conn.close()
+        release_conn(conn)
     return {"message": "Item added"}
 
-@app.put("/update-item/{item_id}")
-def update_item(item_id: str, item: Item):
+@app.put("/update-items")
+def update_items(items: List[Item]):
+    """Bulk update items to reduce multiple calls."""
     conn = get_conn()
     cur = conn.cursor()
     try:
-        cur.execute(
-            """
-            UPDATE items SET
-                name=%s, shop_category=%s, unit=%s, unit_factor=%s,
-                irreplacable=%s, current_qty=%s, ideal_qty=%s,
-                low_stock_ratio=%s, consumption_rate=%s,
-                last_updated=NOW()
-            WHERE id=%s
-            """,
-            (
-                item.name, item.shop_category, item.unit, item.unit_factor,
-                item.irreplacable, item.current_qty, item.ideal_qty,
-                item.low_stock_ratio, item.consumption_rate, item_id
+        for item in items:
+            if not item.id:
+                continue
+            cur.execute(
+                """
+                UPDATE items SET
+                    name=%s, shop_category=%s, unit=%s, unit_factor=%s,
+                    irreplacable=%s, current_qty=%s, ideal_qty=%s,
+                    low_stock_ratio=%s, consumption_rate=%s,
+                    last_updated=NOW()
+                WHERE id=%s
+                """,
+                (
+                    item.name, item.shop_category, item.unit, item.unit_factor,
+                    item.irreplacable, item.current_qty, item.ideal_qty,
+                    item.low_stock_ratio, item.consumption_rate, item.id
+                )
             )
-        )
-        if cur.rowcount == 0:
-            raise HTTPException(status_code=404, detail="Item not found")
         conn.commit()
     except Exception as e:
         conn.rollback()
         raise HTTPException(status_code=400, detail=str(e))
     finally:
         cur.close()
-        conn.close()
-    return {"message": "Item updated"}
+        release_conn(conn)
+    return {"message": "Items updated"}
 
 @app.delete("/delete-item/{item_id}")
 def delete_item(item_id: str):
@@ -148,7 +174,7 @@ def delete_item(item_id: str):
         raise HTTPException(status_code=400, detail=str(e))
     finally:
         cur.close()
-        conn.close()
+        release_conn(conn)
     return {"message": "Item deleted"}
 
 # =========================
@@ -161,8 +187,19 @@ def get_groups():
     cur.execute("SELECT * FROM groups ORDER BY name")
     rows = cur.fetchall()
     cur.close()
-    conn.close()
+    release_conn(conn)
     return [{"id": str(r[0]), "name": r[1], "irreplacable": r[2]} for r in rows]
+
+@app.get("/groups-min")
+def get_groups_min():
+    """Minimal group info for dropdowns"""
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT id, name FROM groups ORDER BY name")
+    rows = cur.fetchall()
+    cur.close()
+    release_conn(conn)
+    return [{"id": str(r[0]), "name": r[1]} for r in rows]
 
 @app.post("/add-group")
 def add_group(group: Group):
@@ -179,7 +216,7 @@ def add_group(group: Group):
         raise HTTPException(status_code=400, detail=str(e))
     finally:
         cur.close()
-        conn.close()
+        release_conn(conn)
     return {"message": "Group added"}
 
 @app.get("/group-members/{group_id}")
@@ -195,7 +232,7 @@ def get_group_members(group_id: str):
     """, (group_id,))
     rows = cur.fetchall()
     cur.close()
-    conn.close()
+    release_conn(conn)
     return [{"id": str(r[0]), "item_name": r[1], "group_name": r[2]} for r in rows]
 
 @app.post("/add-member")
@@ -215,7 +252,7 @@ def add_member(member: GroupMember):
         raise HTTPException(status_code=400, detail=str(e))
     finally:
         cur.close()
-        conn.close()
+        release_conn(conn)
     return {"message": "Member added"}
 
 @app.delete("/remove-member/{member_id}")
@@ -232,5 +269,5 @@ def remove_member(member_id: str):
         raise HTTPException(status_code=400, detail=str(e))
     finally:
         cur.close()
-        conn.close()
+        release_conn(conn)
     return {"message": "Member removed"}
