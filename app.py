@@ -126,14 +126,32 @@ def set_qty(key_name, value, item):
     update_qty_background(item_copy)
 
 # =========================
-# REUSABLE COMPONENTS
+# SAFE BUTTON CALLBACKS
+# =========================
+def set_qty_callback(item_id, value):
+    key_name = f"qty_{item_id}"
+    if key_name not in st.session_state:
+        st.session_state[key_name] = value
+    else:
+        st.session_state[key_name] = value
+
+    # Update in background
+    item = next((i for i in st.session_state.get("all_items", []) if i["id"] == item_id), None)
+    if item:
+        item_copy = item.copy()
+        item_copy["current_qty"] = value
+        update_qty_background(item_copy)
+
+
+# =========================
+# ITEM NODE COMPONENT
 # =========================
 def render_item_node(item):
     """Interactive item node for shopping list with safe background saving."""
     with st.expander(f"📦 {item['name']}", expanded=False):
 
         # Estimated quantity (placeholder)
-        st.write(f"**Estimated Quantity:** ⚪")  # Placeholder, can replace later
+        st.write(f"**Estimated Quantity:** ⚪")
 
         # Last updated quantity (with unit factor)
         last_qty = item["current_qty"] * item["unit_factor"]
@@ -147,7 +165,7 @@ def render_item_node(item):
         )
         st.write(f"**Last Updated:** {formatted}")
 
-        # Number input for updating quantity
+        # Number input
         key_name = f"qty_{item['id']}"
         if key_name not in st.session_state:
             st.session_state[key_name] = int(item.get("current_qty", 0))
@@ -157,24 +175,30 @@ def render_item_node(item):
             min_value=0,
             value=st.session_state[key_name],
             step=1,
-            key=key_name
+            key=key_name,
+            on_change=set_qty_callback,
+            args=(item["id"], st.session_state[key_name])
         )
 
-        # Save change in background if value changed
-        if new_qty != st.session_state[key_name]:
-            set_qty(key_name, new_qty, item)
-
-        # Quick buttons
+        # Quick buttons with callbacks
         col1, col2 = st.columns(2)
 
         # Set to 0 button
-        if col1.button("Set to 0", key=f"zero_{item['id']}"):
-            set_qty(key_name, 0, item)
+        col1.button(
+            "Set to 0",
+            key=f"zero_{item['id']}",
+            on_click=set_qty_callback,
+            args=(item["id"], 0)
+        )
 
         # Set to Ideal button
-        if col2.button("Set to Ideal", key=f"ideal_{item['id']}"):
-            ideal_qty = int(item.get("ideal_qty") or 0)
-            set_qty(key_name, ideal_qty, item)
+        ideal_qty = int(item.get("ideal_qty") or 0)
+        col2.button(
+            "Set to Ideal",
+            key=f"ideal_{item['id']}",
+            on_click=set_qty_callback,
+            args=(item["id"], ideal_qty)
+        )
 
 def render_tree(group_id, group_name, items_dict, visited=None):
     """Recursive function to display group tree."""
