@@ -118,6 +118,7 @@ elif page == "➕ Add Item":
             st.error("Name is required")
         else:
             item_data = {
+                "id":None,
                 "name": name,
                 "shop_category": category,
                 "unit": unit,
