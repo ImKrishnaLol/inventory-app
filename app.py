@@ -108,7 +108,17 @@ def delete_member(member_id):
 def needs_restock(item):
     return True
 
+# =========================
+# REUSABLE COMPONENTS
+# =========================
+def render_item_node(item):
+    """Display a single item in an expandable node."""
+    with st.expander(f"📦 {item['name']}", expanded=False):
+        st.write(f"Quantity: {item['current_qty']}")
+        # Future buttons like Edit, Delete, Add to Cart, etc. can go here
+
 def render_tree(group_id, group_name, items_dict, visited=None):
+    """Recursive function to display group tree."""
     if visited is None:
         visited = set()
 
@@ -117,39 +127,30 @@ def render_tree(group_id, group_name, items_dict, visited=None):
         return
 
     visited.add(group_id)
-
     members = fetch_group_members(group_id)
 
-    # 🔽 COLLAPSIBLE NODE FOR THE GROUP
     with st.expander(f"📁 {group_name}", expanded=False):
-
         if not members:
             st.write("• (empty)")
             return
 
         for m in members:
-
-            # 📦 ITEM
+            # Item node
             if m.get("item_id"):
                 item = items_dict.get(m["item_id"])
-
                 if item and needs_restock(item):
-                    # Expandable item with quantity inside
-                    with st.expander(f"📦 {item['name']}", expanded=False):
-                        st.write(f"Quantity: {item['current_qty']}")
+                    render_item_node(item)
 
-                        # Here we can later add buttons like +1, -1, etc.
-
-            # 📁 CHILD GROUP
+            # Child group node
             elif m.get("child_group_id"):
                 child_name = m.get("group_name", "Unnamed Group")
-
                 render_tree(
                     m["child_group_id"],
                     child_name,
                     items_dict,
                     visited.copy()
                 )
+
 # =========================
 # NAVIGATION
 # =========================
@@ -167,14 +168,13 @@ if page == "🏠 Home":
 
     items = fetch_items()
     groups = fetch_groups()
+    items_dict = {item["id"]: item for item in items} if items else {}
 
     if not items:
         st.info("No items available")
     else:
-        items_dict = {item["id"]: item for item in items}
-        seen_items = set()
-
         st.subheader("📁 Groups")
+        seen_items = set()
 
         if groups:
             for g in groups:
@@ -183,31 +183,27 @@ if page == "🏠 Home":
         st.divider()
 
         # =========================
-        # STANDALONE ITEMS (Other Items)
+        # STANDALONE ITEMS
         # =========================
         st.subheader("📦 Other Items")
-        
-        # find items inside groups
-        seen_items = set()
+
+        # Mark all items in groups as seen
         for g in groups:
             members = fetch_group_members(g["id"])
             for m in members:
                 if m.get("item_id"):
                     seen_items.add(m["item_id"])
-        
+
         remaining = [
             item for item in items
             if item["id"] not in seen_items and needs_restock(item)
         ]
-        
+
         if not remaining:
             st.write("✅ Nothing else")
         else:
             for item in remaining:
-                # Make each item an expandable section like in groups
-                with st.expander(f"📦 {item['name']}", expanded=False):
-                    st.write(f"Quantity: {item['current_qty']}")
-                    # Later we can add buttons here too
+                render_item_node(item)
 
 # =========================
 # SYSTEM STATUS PAGE
