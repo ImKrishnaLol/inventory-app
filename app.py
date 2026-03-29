@@ -318,10 +318,11 @@ elif page == "🗂️ Groups":
 
     groups = fetch_groups()
 
-    tab1, tab2, tab3 = st.tabs([
+    tab1, tab2, tab3, tab4 = st.tabs([
         "📋 View",
         "➕ Create",
-        "✏️ Edit"
+        "✏️ Edit",
+        "🔗 Members"
     ])
 
     # =========================
@@ -432,3 +433,111 @@ elif page == "🗂️ Groups":
                     st.rerun()
                 else:
                     st.error("Failed to update")
+        # =========================
+        # ✏️ Members
+        # =========================
+        with tab4:
+            st.subheader("Manage Group Members")
+        
+            if not groups:
+                st.info("No groups available")
+            else:
+                group_map = {g["name"]: g["id"] for g in groups}
+        
+                selected_group_name = st.selectbox(
+                    "Select Group",
+                    list(group_map.keys()),
+                    key="member_group"
+                )
+        
+                selected_group_id = group_map[selected_group_name]
+        
+                st.divider()
+        
+                # =========================
+                # ADD MEMBER
+                # =========================
+                st.subheader("➕ Add Member")
+        
+                member_type = st.radio("Type", ["Item", "Group"], horizontal=True)
+        
+                # ---- ADD ITEM ----
+                if member_type == "Item":
+                    items = fetch_items()
+                    item_map = {i["name"]: i["id"] for i in items} if items else {}
+        
+                    if item_map:
+                        selected_item = st.selectbox(
+                            "Select Item",
+                            list(item_map.keys()),
+                            key="member_item"
+                        )
+        
+                        if st.button("Add Item to Group"):
+                            success = add_member(selected_group_id, {
+                                "group_id": selected_group_id,
+                                "item_id": item_map[selected_item],
+                                "child_group_id": None
+                            })
+        
+                            if success:
+                                st.success("Item added")
+                                st.rerun()
+                            else:
+                                st.error("Failed")
+                    else:
+                        st.info("No items available")
+        
+                # ---- ADD GROUP ----
+                else:
+                    available_groups = {
+                        name: gid for name, gid in group_map.items()
+                        if gid != selected_group_id
+                    }
+        
+                    if available_groups:
+                        selected_child = st.selectbox(
+                            "Select Group",
+                            list(available_groups.keys()),
+                            key="member_group_add"
+                        )
+        
+                        if st.button("Add Group to Group"):
+                            success = add_member(selected_group_id, {
+                                "group_id": selected_group_id,
+                                "item_id": None,
+                                "child_group_id": available_groups[selected_child]
+                            })
+        
+                            if success:
+                                st.success("Group added")
+                                st.rerun()
+                            else:
+                                st.error("Failed")
+                    else:
+                        st.info("No other groups available")
+        
+                st.divider()
+        
+                # =========================
+                # VIEW MEMBERS
+                # =========================
+                st.subheader("📄 Current Members")
+        
+                members = fetch_group_members(selected_group_id)
+        
+                if not members:
+                    st.info("No members in this group")
+                else:
+                    for m in members:
+                        name = m["item_name"] or f"[Group] {m['group_name']}"
+        
+                        col1, col2 = st.columns([3, 1])
+                        col1.write(name)
+        
+                        if col2.button("Remove", key=f"remove_{m['id']}"):
+                            if delete_member(m["id"]):
+                                st.success("Removed")
+                                st.rerun()
+                            else:
+                                st.error("Failed")
