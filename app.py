@@ -25,11 +25,18 @@ def check_db():
     except:
         return None
 
+def fetch_items():
+    try:
+        r = requests.get(f"{API}/items")
+        return r.json() if r.status_code == 200 else []
+    except:
+        return []
+
 # =========================
 # NAVIGATION
 # =========================
 st.sidebar.title("Navigation")
-page = st.sidebar.radio("Go to", ["🏠 Home", "⚙️ System Status"])
+page = st.sidebar.radio("Go to", ["🏠 Home", "⚙️ System Status", "📦 Items"])
 
 # =========================
 # HOME PAGE
@@ -64,3 +71,18 @@ elif page == "⚙️ System Status":
         st.json(db_status)
     else:
         st.error("Database not reachable")
+
+# =========================
+# ITEMS PAGE
+# =========================
+elif page == "📦 Items":
+    st.title("📦 Items")
+
+    items = fetch_items()
+
+    if not items:
+        st.info("No items found.")
+    else:
+        st.success(f"{len(items)} items loaded")
+
+        st.dataframe(items, use_container_width=True)
