@@ -485,4 +485,5 @@ elif page == "🗂️ Groups":
 
         st.write("### Structure")
 
-        render_tree(group_map[selected_root])
+        if m.get("child_group_id"):
+            render_tree(m["child_group_id"], level+1, visited)
