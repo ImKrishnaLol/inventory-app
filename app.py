@@ -177,7 +177,7 @@ elif page=="🗂️ Groups Manager":
 # =========================
 if st.session_state.rerun_needed:
     st.session_state.rerun_needed=False
-    st.experimental_rerun()
+    st.rerun()
 if st.session_state.msg:
     st.success(st.session_state.msg)
     st.session_state.msg=None
