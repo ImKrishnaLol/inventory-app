@@ -207,6 +207,7 @@ elif page == "✏️ Edit Item":
 
         if st.button("Save Changes"):
             updated_data = {
+                "ig":item["id"]
                 "name": name,
                 "shop_category": category,
                 "unit": unit,
