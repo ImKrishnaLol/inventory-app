@@ -101,19 +101,28 @@ def render_tree(group_id, level=0, visited=None):
 
     # Prevent infinite loops
     if group_id in visited:
-        st.write("   " * level + "⚠️ Circular reference")
+        st.write("   " * level + "⚠️ Cycle detected")
         return
 
     visited.add(group_id)
 
     members = fetch_group_members(group_id)
 
+    if not members:
+        st.write("   " * level + "• (empty)")
+        return
+
     for m in members:
+        # ITEM
         if m.get("item_name"):
             st.write("   " * level + f"📦 {m['item_name']}")
+
+        # CHILD GROUP
         elif m.get("group_name"):
             st.write("   " * level + f"📁 {m['group_name']}")
-            render_tree(m["child_group_id"], level + 1, visited)
+
+            if m.get("child_group_id"):
+                render_tree(m["child_group_id"], level + 1, visited)
 
 
 # =========================
