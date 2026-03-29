@@ -236,3 +236,71 @@ def update_item(item_id: str, item: Item):
     finally:
         cur.close()
         release_conn(conn)
+
+# =========================
+# GROUPS
+# =========================
+@app.get("/groups")
+def get_groups():
+    conn = get_conn()
+    cur = conn.cursor()
+
+    try:
+        cur.execute("SELECT id, name, irreplacable FROM groups ORDER BY name")
+        rows = cur.fetchall()
+
+        return [
+            {"id": str(r[0]), "name": r[1], "irreplacable": r[2]}
+            for r in rows
+        ]
+
+    finally:
+        cur.close()
+        release_conn(conn)
+
+@app.post("/groups")
+def add_group(group: Group):
+    conn = get_conn()
+    cur = conn.cursor()
+
+    try:
+        group_id = str(uuid4())
+
+        cur.execute(
+            "INSERT INTO groups (id, name, irreplacable) VALUES (%s,%s,%s)",
+            (group_id, group.name, group.irreplacable)
+        )
+
+        conn.commit()
+
+        return {"id": group_id, **group.dict()}
+
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+
+    finally:
+        cur.close()
+        release_conn(conn)
+
+@app.delete("/groups/{group_id}")
+def delete_group(group_id: str):
+    conn = get_conn()
+    cur = conn.cursor()
+
+    try:
+        cur.execute("DELETE FROM groups WHERE id=%s", (group_id,))
+
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Group not found")
+
+        conn.commit()
+        return {"message": "Group deleted"}
+
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+
+    finally:
+        cur.close()
+        release_conn(conn)
