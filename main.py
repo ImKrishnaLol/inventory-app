@@ -330,6 +330,23 @@ def get_group_members(group_id: str):
             WHERE gm.group_id = %s
         """, (group_id,))
 
+        rows = cur.fetchall()
+
+        return [
+            {
+                "id": str(r[0]),
+                "item_id": str(r[1]) if r[1] else None,
+                "child_group_id": str(r[2]) if r[2] else None,
+                "item_name": r[3],
+                "group_name": r[4]
+            }
+            for r in rows
+        ]
+
+    finally:
+        cur.close()
+        release_conn(conn)
+
 # =========================
 # ADD MEMBER
 # =========================
