@@ -120,40 +120,46 @@ def update_qty_background(item_id: int, new_qty: int):
 
 
 # =========================
-# ITEM NODE COMPONENT (Fixed)
+# ITEM NODE COMPONENT (No Rerun, Works)
 # =========================
 def render_item_node(item):
     key_name = f"qty_{item['id']}"
 
+    # Initialize session state once
     if key_name not in st.session_state:
         st.session_state[key_name] = int(item.get("current_qty", 0))
 
-    def update_qty(new_qty: int):
-        st.session_state[key_name] = new_qty
-        update_qty_background(item["id"], new_qty)
+    def update_backend(new_qty: int):
+        """Send new quantity to backend in background thread."""
+        threading.Thread(target=update_item, args=(item["id"], {"current_qty": new_qty}), daemon=True).start()
 
     with st.expander(f"📦 {item['name']}", expanded=False):
-        # Number input with callback
+        # Number input: updates session state and backend immediately
         new_qty = st.number_input(
             "Update Quantity",
             min_value=0,
             value=st.session_state[key_name],
             step=1,
-            key=f"input_{item['id']}",
-            on_change=lambda: update_qty(st.session_state[f"input_{item['id']}"])
+            key=f"input_{item['id']}"
         )
+
+        # Detect change
+        if new_qty != st.session_state[key_name]:
+            st.session_state[key_name] = new_qty
+            update_backend(new_qty)
 
         # Quick buttons
         col1, col2 = st.columns(2)
 
-        if col1.button("Set to 0", key=f"zero_{item['id']}"):
-            update_qty(0)
-            st.rerun()
-
         ideal_qty = int(item.get("ideal_qty") or 0)
+
+        if col1.button("Set to 0", key=f"zero_{item['id']}"):
+            st.session_state[key_name] = 0
+            update_backend(0)
+
         if col2.button("Set to Ideal", key=f"ideal_{item['id']}"):
-            update_qty(ideal_qty)
-            st.rerun()
+            st.session_state[key_name] = ideal_qty
+            update_backend(ideal_qty)
 
 def render_tree(group_id, group_name, items_dict, visited=None):
     """Recursive function to display group tree."""
