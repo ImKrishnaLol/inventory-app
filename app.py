@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import requests
 import numpy as np
+from uuid import uuid4
 from concurrent.futures import ThreadPoolExecutor
 
 API = "https://inventory-app-mi1m.onrender.com"
@@ -35,11 +36,12 @@ def show_message(msg):
     st.session_state.rerun_needed = True
 
 def sanitize_row(row):
-    return {k: (None if pd.isna(v) else int(v) if isinstance(v,np.integer)
+    return {k: (int(v) if isinstance(v,np.integer)
                 else float(v) if isinstance(v,np.floating)
                 else bool(v) if isinstance(v,bool)
-                else str(v) if isinstance(v,str) else v)
-            for k,v in row.items() if k != "_changed"}
+                else str(v) if isinstance(v,str)
+                else v)
+            for k,v in row.items() if k not in ["_changed"]}
 
 def save_changes_bulk(df):
     changes = [sanitize_row(r) for _, r in df.iterrows() if r.get("_changed")]
@@ -49,7 +51,7 @@ def save_changes_bulk(df):
     else: st.error("Failed to save changes: "+r.text)
 
 # =========================
-# PAGE CONFIG & NAVIGATION
+# PAGE CONFIG
 # =========================
 st.set_page_config(page_title="Inventory System", layout="wide")
 st.sidebar.title("Navigation")
@@ -68,21 +70,21 @@ if page=="🏠 Main Menu":
 
 # =========================
 # DATABASE EDITOR
-# =========================
 elif page=="🗄️ Database Editor":
     st.title("🗄️ Database Editor")
     df_future = executor.submit(fetch_items)
     df = df_future.result()
 
     default_row = {
+        "id": str(uuid4()),
         "name": "", "shop_category": "", "unit": "", "unit_factor":1,
         "irreplacable":False, "current_qty":0, "ideal_qty":0,
-        "low_stock_ratio":0.3, "consumption_rate":0, "last_updated":""
+        "low_stock_ratio":0.3, "consumption_rate":0.01, "last_updated":""
     }
 
     if df.empty and st.session_state.edited_df.empty:
         st.session_state.edited_df = pd.DataFrame([default_row])
-    elif not df.empty:
+    elif not df.empty and st.session_state.edited_df.empty:
         st.session_state.edited_df = df.copy()
 
     # ➕ Add new row
@@ -92,6 +94,7 @@ elif page=="🗄️ Database Editor":
         r = requests.post(f"{API}/add-item", json=default_row)
         if r.status_code==200:
             new_row = r.json()
+            new_row["_changed"] = True
             st.session_state.edited_df = pd.concat([st.session_state.edited_df, pd.DataFrame([new_row])], ignore_index=True)
             st.rerun()
         else: st.error("Failed to add new row: "+r.text)
@@ -107,8 +110,7 @@ elif page=="🗄️ Database Editor":
     # Track changes
     for idx, row in edited_df.iterrows():
         orig = df[df["id"]==row.get("id")]
-        st.session_state.edited_df.at[idx,"_changed"] = not orig.empty and not row.equals(orig.iloc[0])
-
+        st.session_state.edited_df.at[idx,"_changed"] = True if orig.empty else not row.equals(orig.iloc[0])
     st.session_state.edited_df = edited_df
 
     # Manual save
@@ -120,14 +122,15 @@ elif page=="🗄️ Database Editor":
 
 # =========================
 # GROUPS MANAGER
-# =========================
 elif page=="🗂️ Groups Manager":
     st.title("🗂️ Groups Manager")
     groups = fetch_groups(full=False)
 
     st.subheader("📋 Existing Groups")
     if not groups: st.info("No groups found.")
-    else: [st.markdown(f"- **{g['name']}**") for g in groups]
+    else:
+        for g in groups:
+            st.markdown(f"- **{g['name']}**")
 
     st.divider()
     # ➕ Add Group
