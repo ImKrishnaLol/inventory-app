@@ -3,20 +3,22 @@ import pandas as pd
 import requests
 from concurrent.futures import ThreadPoolExecutor
 
+# =========================
+# CONFIG
+# =========================
 API = "https://inventory-app-mi1m.onrender.com"
-
 st.set_page_config(page_title="Inventory System", layout="wide")
-
-# =========================
-# UTILITIES
-# =========================
 executor = ThreadPoolExecutor(max_workers=5)
 
+# =========================
+# UTILITY FUNCTIONS
+# =========================
 @st.cache_data(ttl=60)
 def fetch_items(full=True):
     endpoint = "/items" if full else "/items-min"
     r = requests.get(f"{API}{endpoint}")
-    if r.status_code != 200: return pd.DataFrame() if full else []
+    if r.status_code != 200:
+        return pd.DataFrame() if full else []
     data = r.json()
     return pd.DataFrame(data) if full else data
 
@@ -24,23 +26,48 @@ def fetch_items(full=True):
 def fetch_groups(full=True):
     endpoint = "/groups" if full else "/groups-min"
     r = requests.get(f"{API}{endpoint}")
-    if r.status_code != 200: return pd.DataFrame() if full else []
+    if r.status_code != 200:
+        return pd.DataFrame() if full else []
     data = r.json()
     return pd.DataFrame(data) if full else data
 
 def fetch_group_members(group_id):
     r = requests.get(f"{API}/group-members/{group_id}")
-    return r.json() if r.status_code==200 else []
+    return r.json() if r.status_code == 200 else []
 
 def show_message(msg):
     st.session_state.msg = msg
     st.session_state.rerun_needed = True
 
+def add_new_item():
+    """Create a new item immediately in backend."""
+    r = requests.post(f"{API}/add-item", json={})
+    if r.status_code == 200:
+        return r.json()  # returns the full new row with UUID and defaults
+    st.error(f"Failed to add new row: {r.text}")
+    return None
+
+def update_items_bulk(items):
+    """Update multiple items in backend."""
+    r = requests.put(f"{API}/update-items", json=items)
+    if r.status_code == 200:
+        show_message("Changes saved!")
+    else:
+        st.error(r.text)
+
+def delete_item_backend(item_id):
+    r = requests.delete(f"{API}/delete-item/{item_id}")
+    if r.status_code == 200:
+        show_message("Item deleted!")
+    else:
+        st.error(r.text)
+
 # =========================
-# SESSION STATE
+# SESSION STATE INIT
 # =========================
 if "msg" not in st.session_state: st.session_state.msg = None
 if "rerun_needed" not in st.session_state: st.session_state.rerun_needed = False
+if "edited_df" not in st.session_state: st.session_state.edited_df = fetch_items()
 
 # =========================
 # NAVIGATION
@@ -51,7 +78,7 @@ page = st.sidebar.radio("Go to", ["🏠 Main Menu", "🗄️ Database Editor", "
 # =========================
 # MAIN MENU
 # =========================
-if page=="🏠 Main Menu":
+if page == "🏠 Main Menu":
     st.title("🏠 Inventory System")
     st.info("Control hub. Modules coming soon!")
 
@@ -61,34 +88,11 @@ if page=="🏠 Main Menu":
 elif page == "🗄️ Database Editor":
     st.title("🗄️ Database Editor")
     
-    # Fetch live items
-    df_future = executor.submit(fetch_items)
-    df = df_future.result()
+    df = fetch_items()
 
-    # Default row template matching Item model defaults (no 'id', backend assigns UUID)
-    default_row = {
-        "name": "",
-        "shop_category": "",
-        "unit": "",
-        "unit_factor": 1,
-        "irreplacable": False,
-        "current_qty": 0,
-        "ideal_qty": 0,
-        "low_stock_ratio": 0.3,
-        "consumption_rate": 0,
-        "last_updated": ""
-    }
-
-    # =========================
-    # Initialize session_state
-    if "edited_df" not in st.session_state:
-        if df.empty:
-            st.session_state.edited_df = pd.DataFrame([default_row])
-        else:
-            st.session_state.edited_df = df.copy()
-
-    # =========================
-    # Show Live Table Editor
+    # -------------------------
+    # LIVE TABLE EDITOR
+    # -------------------------
     st.subheader("📊 Live Table")
     edited_df = st.data_editor(
         st.session_state.edited_df,
@@ -99,75 +103,79 @@ elif page == "🗄️ Database Editor":
 
     st.divider()
 
-    # =========================
-    # DELETE ITEM
-    st.subheader("🗑️ Delete Item")
-    if not df.empty:
-        item_to_delete = st.selectbox("Select item", df["name"])
-        if st.button("Delete"):
-            item_id = df[df["name"] == item_to_delete]["id"].values[0]
-            r = requests.delete(f"{API}/delete-item/{item_id}")
-            if r.status_code == 200: 
-                show_message("Item deleted!")
-                st.session_state.edited_df = st.session_state.edited_df[
-                    st.session_state.edited_df["id"] != item_id
-                ].reset_index(drop=True)
-            else:
-                st.error(r.text)
-
-    st.divider()
-
-    # =========================
-    # ADD NEW ROW (Immediate Backend Update)
+    # -------------------------
+    # ADD NEW ROW (Immediate backend)
+    # -------------------------
     st.subheader("➕ Add New Row")
-    if st.button("➕ Add New Row"):
-        # Save any existing changes first
+    if st.button("Add New Row"):
+        # Save any unsaved changes first
         pending_changes = []
         for i, row in edited_df.iterrows():
             row_dict = row.to_dict()
-            if row_dict.get("id") is not None:
+            if "id" in row_dict and row_dict["id"]:
                 orig_row = df[df["id"] == row_dict["id"]]
                 if not orig_row.empty and not row.equals(orig_row.iloc[0]):
                     pending_changes.append(row_dict)
         if pending_changes:
-            r = requests.put(f"{API}/update-items", json=pending_changes)
-            if r.status_code == 200:
-                show_message("Pending changes saved!")
-                df = fetch_items()  # refresh df after saving changes
-                st.session_state.edited_df = df.copy()
-            else:
-                st.error("Failed to save pending changes before adding new row.")
+            update_items_bulk(pending_changes)
+            df = fetch_items()
+            st.session_state.edited_df = df.copy()
 
-        # Now create the new row immediately in the backend
-        r = requests.post(f"{API}/add-item", json=default_row)
-        if r.status_code == 200:
-            new_row = r.json()  # backend returns full new row with UUID and defaults
+        # Add new item immediately
+        new_row = add_new_item()
+        if new_row:
             st.session_state.edited_df = pd.concat(
                 [st.session_state.edited_df, pd.DataFrame([new_row])],
                 ignore_index=True
             )
             st.rerun()
-        else:
-            st.error("Failed to add new row: " + r.text)
+
+    st.divider()
+
+    # -------------------------
+    # DELETE ITEM
+    # -------------------------
+    st.subheader("🗑️ Delete Item")
+    if not edited_df.empty:
+        item_to_delete = st.selectbox("Select item to delete", edited_df["name"])
+        if st.button("Delete Selected Item"):
+            item_id = edited_df[edited_df["name"] == item_to_delete]["id"].values[0]
+            delete_item_backend(item_id)
+            st.session_state.edited_df = edited_df[edited_df["id"] != item_id].reset_index(drop=True)
+
+    st.divider()
+
+    # -------------------------
+    # SAVE CHANGES BUTTON
+    # -------------------------
+    st.subheader("💾 Save All Changes")
+    if st.button("Save Changes"):
+        changes = [row.to_dict() for i, row in edited_df.iterrows()]
+        if changes:
+            update_items_bulk(changes)
 
 # =========================
 # GROUPS MANAGER
 # =========================
-elif page=="🗂️ Groups Manager":
+elif page == "🗂️ Groups Manager":
     st.title("🗂️ Groups Manager")
-    groups = fetch_groups(full=False)  # list of dicts
+    groups = fetch_groups(full=False)
 
-    # Existing Groups
+    # -------------------------
+    # EXISTING GROUPS
+    # -------------------------
     st.subheader("📋 Existing Groups")
-    if not groups: 
+    if not groups:
         st.info("No groups found.")
     else:
         for g in groups:
             st.markdown(f"- **{g['name']}**")
 
     st.divider()
-    
+
+    # -------------------------
     # ADD GROUP
+    # -------------------------
     st.subheader("➕ Add Group")
     new_group_name = st.text_input("Group Name")
     new_group_irreplacable = st.checkbox("Irreplacable")
@@ -180,33 +188,37 @@ elif page=="🗂️ Groups Manager":
             if r.status_code == 200: show_message(f"Group '{new_group_name}' added!")
             else: st.error(r.text)
 
+    # -------------------------
     # DELETE GROUP
+    # -------------------------
     st.subheader("🗑️ Delete Group")
     if groups:
         group_names = [g["name"] for g in groups]
         selected_group_name = st.selectbox("Select Group to Delete", group_names)
-        selected_group = next(g for g in groups if g["name"]==selected_group_name)
+        selected_group = next(g for g in groups if g["name"] == selected_group_name)
         if st.button("Delete Group"):
             r = requests.delete(f"{API}/delete-group/{selected_group['id']}")
             if r.status_code == 200: show_message(f"Group '{selected_group_name}' deleted!")
             else: st.error(r.text)
 
     st.divider()
-    
+
+    # -------------------------
     # MEMBERS MANAGEMENT
+    # -------------------------
     st.subheader("🔗 Add/Remove Members")
     if groups:
-        selected_group_name = st.selectbox("Select Group", [g["name"] for g in groups], key="select_group_members")
-        selected_group = next(g for g in groups if g["name"]==selected_group_name)
+        selected_group_name = st.selectbox(
+            "Select Group", [g["name"] for g in groups], key="select_group_members"
+        )
+        selected_group = next(g for g in groups if g["name"] == selected_group_name)
         selected_group_id = selected_group["id"]
 
-        # Items for adding
         items = fetch_items(full=False)
         item_options = {i["name"]: i["id"] for i in items} if items else {}
 
-        # Add Item or Group as member
-        member_type = st.radio("Type", ["Item","Group"], horizontal=True)
-        if member_type=="Item" and item_options:
+        member_type = st.radio("Type", ["Item", "Group"], horizontal=True)
+        if member_type == "Item" and item_options:
             selected_item_name = st.selectbox("Select Item", list(item_options.keys()))
             selected_item_id = item_options[selected_item_name]
             if st.button("Add Item to Group"):
@@ -217,25 +229,26 @@ elif page=="🗂️ Groups Manager":
                 if r.status_code == 200: show_message(f"Item '{selected_item_name}' added!")
                 else: st.error(r.text)
 
-        # VIEW MEMBERS
         st.subheader("📄 Group Members")
         members = fetch_group_members(selected_group_id)
-        if not members: st.info("No members in this group.")
+        if not members:
+            st.info("No members in this group.")
         else:
             for m in members:
                 name = m.get("item_name") or f"[Group] {m.get('group_name')}"
-                c1, c2 = st.columns([3,1])
+                c1, c2 = st.columns([3, 1])
                 c1.write(name)
                 if c2.button("Remove", key=f"remove_member_{m['id']}"):
                     r = requests.delete(f"{API}/remove-member/{m['id']}")
                     if r.status_code == 200: show_message(f"Member '{name}' removed")
                     else: st.error(r.text)
+
 # =========================
 # HANDLE RERUN & MESSAGES
 # =========================
 if st.session_state.rerun_needed:
-    st.session_state.rerun_needed=False
+    st.session_state.rerun_needed = False
     st.rerun()
 if st.session_state.msg:
     st.success(st.session_state.msg)
-    st.session_state.msg=None
+    st.session_state.msg = None
