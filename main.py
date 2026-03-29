@@ -187,6 +187,3 @@ def delete_item(item_id: str):
     finally:
         cur.close()
         release_conn(conn)
-    finally:
-        cur.close()
-        release_conn(conn)
