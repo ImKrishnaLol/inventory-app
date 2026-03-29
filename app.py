@@ -37,6 +37,8 @@ def create_item(item_data):
         r = requests.post(f"{API}/items", json=item_data)
         return r.json() if r.status_code == 200 else None
     except:
+        return None
+
 # =========================
 # NAVIGATION
 # =========================
