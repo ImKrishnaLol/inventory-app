@@ -163,6 +163,30 @@ def add_item(item: Item):
         conn.rollback()
         raise HTTPException(status_code=400, detail=str(e))
 
+# =========================
+# DELETE ITEM
+# =========================
+@app.delete("/items/{item_id}")
+def delete_item(item_id: str):
+    conn = get_conn()
+    cur = conn.cursor()
+
+    try:
+        cur.execute("DELETE FROM items WHERE id = %s", (item_id,))
+        
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Item not found")
+
+        conn.commit()
+        return {"message": "Item deleted"}
+
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+
+    finally:
+        cur.close()
+        release_conn(conn)
     finally:
         cur.close()
         release_conn(conn)
