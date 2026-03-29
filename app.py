@@ -65,9 +65,8 @@ elif page == "🗄️ Database Editor":
     df_future = executor.submit(fetch_items)
     df = df_future.result()
 
-    # Default row template matching Item model defaults
+    # Default row template matching Item model defaults (no 'id', backend assigns UUID)
     default_row = {
-        "id": None,  # placeholder; backend will assign UUID for new rows
         "name": "",
         "shop_category": "",
         "unit": "",
@@ -76,7 +75,7 @@ elif page == "🗄️ Database Editor":
         "current_qty": 0,
         "ideal_qty": 0,
         "low_stock_ratio": 0.3,
-        "consumption_rate": None,
+        "consumption_rate": 0,
         "last_updated": ""
     }
 
@@ -89,16 +88,6 @@ elif page == "🗄️ Database Editor":
             st.session_state.edited_df = df.copy()
 
     # =========================
-    # Add New Row Button
-    st.subheader("➕ Add New Row")
-    if st.button("➕ Add New Row"):
-        st.session_state.edited_df = pd.concat(
-            [st.session_state.edited_df, pd.DataFrame([default_row])],
-            ignore_index=True
-        )
-        st.rerun()
-
-    # =========================
     # Show Live Table Editor
     st.subheader("📊 Live Table")
     edited_df = st.data_editor(
@@ -106,12 +95,10 @@ elif page == "🗄️ Database Editor":
         num_rows="dynamic",
         use_container_width=True
     )
-
-    # Save changes back to session_state
     st.session_state.edited_df = edited_df
 
     st.divider()
-    
+
     # =========================
     # DELETE ITEM
     st.subheader("🗑️ Delete Item")
@@ -122,41 +109,46 @@ elif page == "🗄️ Database Editor":
             r = requests.delete(f"{API}/delete-item/{item_id}")
             if r.status_code == 200: 
                 show_message("Item deleted!")
-                # Remove deleted item from session_state
                 st.session_state.edited_df = st.session_state.edited_df[
                     st.session_state.edited_df["id"] != item_id
                 ].reset_index(drop=True)
-            else: st.error(r.text)
+            else:
+                st.error(r.text)
 
     st.divider()
 
     # =========================
-    # SAVE CHANGES BULK
-    st.subheader("💾 Save Changes")
-    if st.button("Save Changes"):
-        changes = []
+    # ADD NEW ROW (Immediate Backend Update)
+    st.subheader("➕ Add New Row")
+    if st.button("➕ Add New Row"):
+        # Save any existing changes first
+        pending_changes = []
         for i, row in edited_df.iterrows():
             row_dict = row.to_dict()
-            # Existing row changed
             if row_dict.get("id") is not None:
                 orig_row = df[df["id"] == row_dict["id"]]
                 if not orig_row.empty and not row.equals(orig_row.iloc[0]):
-                    changes.append(row_dict)
-            # New row
-            elif row_dict.get("name"):
-                changes.append(row_dict)
-
-        if changes:
-            r = requests.put(f"{API}/update-items", json=changes)
+                    pending_changes.append(row_dict)
+        if pending_changes:
+            r = requests.put(f"{API}/update-items", json=pending_changes)
             if r.status_code == 200:
-                show_message("Changes saved!")
-                # Refresh df and edited_df after save
-                df = fetch_items()
+                show_message("Pending changes saved!")
+                df = fetch_items()  # refresh df after saving changes
                 st.session_state.edited_df = df.copy()
             else:
-                st.error(r.text)
+                st.error("Failed to save pending changes before adding new row.")
+
+        # Now create the new row immediately in the backend
+        r = requests.post(f"{API}/add-item", json=default_row)
+        if r.status_code == 200:
+            new_row = r.json()  # backend returns full new row with UUID and defaults
+            st.session_state.edited_df = pd.concat(
+                [st.session_state.edited_df, pd.DataFrame([new_row])],
+                ignore_index=True
+            )
+            st.rerun()
         else:
-            st.info("No changes detected.")
+            st.error("Failed to add new row: " + r.text)
 
 # =========================
 # GROUPS MANAGER
