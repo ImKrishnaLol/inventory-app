@@ -106,42 +106,51 @@ def delete_member(member_id):
         return False
 
 def needs_restock(item):
-    try:
-        return item["current_qty"] <= item["ideal_qty"] * item["low_stock_ratio"]
-    except:
-        return False
+    return True
 
-def render_group(group_id, items_dict, seen_items, level=0):
+def render_tree(group_id, items_dict, visited=None):
+    if visited is None:
+        visited = set()
+
+    # Prevent infinite loops
+    if group_id in visited:
+        st.warning("Cycle detected")
+        return
+
+    visited.add(group_id)
+
     members = fetch_group_members(group_id)
 
     if not members:
+        st.write("• (empty)")
         return
 
-    indent = "   " * level
-
+    # Find group name
     group_name = None
-
     for m in members:
         if m.get("group_name"):
             group_name = m["group_name"]
             break
 
-    if group_name:
-        st.write(f"{indent}📁 **{group_name}**")
+    # Fallback name
+    if not group_name:
+        group_name = "Unnamed Group"
 
-    for m in members:
-        # ITEM
-        if m.get("item_id"):
-            item = items_dict.get(m["item_id"])
+    # 🔽 COLLAPSIBLE NODE
+    with st.expander(f"📁 {group_name}", expanded=False):
 
-            if item and needs_restock(item):
-                seen_items.add(item["id"])
-                st.write(f"{indent}   📦 {item['name']}")
+        for m in members:
 
-        # CHILD GROUP
-        elif m.get("child_group_id"):
-            render_group(m["child_group_id"], items_dict, seen_items, level + 1)
+            # 📦 ITEM
+            if m.get("item_id"):
+                item = items_dict.get(m["item_id"])
 
+                if item and needs_restock(item):
+                    st.write(f"📦 {item['name']}")
+
+            # 📁 CHILD GROUP
+            elif m.get("child_group_id"):
+                render_tree(m["child_group_id"], items_dict, visited.copy())
 # =========================
 # NAVIGATION
 # =========================
@@ -155,7 +164,7 @@ page = st.sidebar.radio(
 # HOME PAGE
 # =========================
 if page == "🏠 Home":
-    st.title("🛒 What to Buy")
+    st.title("🛒 Shopping Overview")
 
     items = fetch_items()
     groups = fetch_groups()
@@ -166,11 +175,11 @@ if page == "🏠 Home":
         items_dict = {item["id"]: item for item in items}
         seen_items = set()
 
-        st.subheader("📁 By Groups")
+        st.subheader("📁 Groups")
 
         if groups:
             for g in groups:
-                render_group(g["id"], items_dict, seen_items)
+                render_tree(g["id"], items_dict)
 
         st.divider()
 
@@ -179,16 +188,24 @@ if page == "🏠 Home":
         # =========================
         st.subheader("📦 Other Items")
 
+        # find items inside groups
+        for g in groups:
+            members = fetch_group_members(g["id"])
+            for m in members:
+                if m.get("item_id"):
+                    seen_items.add(m["item_id"])
+
         remaining = [
             item for item in items
             if item["id"] not in seen_items and needs_restock(item)
         ]
 
         if not remaining:
-            st.write("✅ Nothing else needed")
+            st.write("✅ Nothing else")
         else:
             for item in remaining:
                 st.write(f"📦 {item['name']}")
+
 # =========================
 # SYSTEM STATUS PAGE
 # =========================
