@@ -183,27 +183,31 @@ if page == "🏠 Home":
         st.divider()
 
         # =========================
-        # STANDALONE ITEMS
+        # STANDALONE ITEMS (Other Items)
         # =========================
         st.subheader("📦 Other Items")
-
+        
         # find items inside groups
+        seen_items = set()
         for g in groups:
             members = fetch_group_members(g["id"])
             for m in members:
                 if m.get("item_id"):
                     seen_items.add(m["item_id"])
-
+        
         remaining = [
             item for item in items
             if item["id"] not in seen_items and needs_restock(item)
         ]
-
+        
         if not remaining:
             st.write("✅ Nothing else")
         else:
             for item in remaining:
-                st.write(f"📦 {item['name']}")
+                # Make each item an expandable section like in groups
+                with st.expander(f"📦 {item['name']}", expanded=False):
+                    st.write(f"Quantity: {item['current_qty']}")
+                    # Later we can add buttons here too
 
 # =========================
 # SYSTEM STATUS PAGE
