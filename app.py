@@ -335,8 +335,6 @@ elif page == "🗂️ Groups":
             else:
                 st.error("Failed to delete group")
 
-    st.divider()
-
     # =========================
     # GROUP MEMBERS
     # =========================
@@ -466,6 +464,3 @@ elif page == "🗂️ Groups":
         st.write("### Structure")
 
         render_tree(group_map[selected_root])
-    st.write("### Structure")
-
-    render_tree(group_map[selected_root])
