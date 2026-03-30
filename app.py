@@ -210,9 +210,12 @@ def render_item_node(item, path=""):
     st.session_state.setdefault(key_saved, int(item.get("current_qty", 0)))
     st.session_state.setdefault(key_status, "Idle")
     st.session_state.setdefault(key_time, item.get("last_updated") or "Never")
-    st.session_state.setdefault(display_key, st.session_state[key_qty] * factor)
     st.session_state.setdefault(f"set_full_{unique_id}", False)
     st.session_state.setdefault(f"set_empty_{unique_id}", False)
+
+    # Initialize display_key only if missing (fixes mixed default+session state warning)
+    if display_key not in st.session_state:
+        st.session_state[display_key] = st.session_state[key_qty] * factor
 
     estimated_qty = estimate_quantity(
         current_qty=st.session_state[key_saved],
@@ -245,24 +248,14 @@ def render_item_node(item, path=""):
         # NUMBER INPUT
         # -------------------------
         is_float = not float(factor).is_integer()
-        st.session_state.setdefault(display_key, st.session_state[key_qty] * factor)
 
-        if is_float:
-            display_qty = st.number_input(
-                f"Quantity ({unit})",
-                min_value=0.0,
-                step=float(factor),
-                value=float(st.session_state[display_key]),
-                key=display_key
-            )
-        else:
-            display_qty = st.number_input(
-                f"Quantity ({unit})",
-                min_value=0,
-                step=int(factor),
-                value=int(st.session_state[display_key]),
-                key=display_key
-            )
+        display_qty = st.number_input(
+            f"Quantity ({unit})",
+            min_value=0.0 if is_float else 0,
+            step=float(factor) if is_float else int(factor),
+            value=st.session_state[display_key],
+            key=display_key
+        )
 
         # Sync UI → stored
         st.session_state[key_qty] = int(display_qty / factor)
@@ -312,6 +305,8 @@ def render_item_node(item, path=""):
         raw_time = st.session_state[key_time]
         st.caption(f"Status: {st.session_state[key_status]}")
         st.caption(f"Last updated: {time_ago(raw_time)} ({format_time(raw_time)})")
+
+
 def render_tree(group_id, group_name, items_dict, path="", visited=None):
     if visited is None:
         visited = set()
