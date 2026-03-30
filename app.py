@@ -158,11 +158,9 @@ def estimate_quantity(current_qty, ideal_qty, consumption_rate, last_updated_str
         return current_qty
 
     try:
-       last_updated = datetime.fromisoformat(last_updated_str)
-        
+        last_updated = datetime.fromisoformat(last_updated_str)
         if last_updated.tzinfo is None:
             last_updated = last_updated.replace(tzinfo=timezone.utc)
-        
         last_updated = last_updated.astimezone(IST)
 
         now = datetime.now(IST)
