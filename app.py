@@ -210,24 +210,20 @@ def render_item_node(item):
         # -------------------------
         # AUTOSAVE LOGIC
         # -------------------------
-        if new_qty != st.session_state[key_saved] and st.session_state[key_status] != "Saving...":
+        if new_qty != st.session_state[key_saved]:
             st.session_state[key_status] = "Saving..."
-        
-            updated_item = {
-                **item,
-                "current_qty": new_qty
-            }
         
             response = update_item(item["id"], {
                 "current_qty": new_qty
             })
-            
+        
             if response:
                 st.session_state[key_saved] = new_qty
                 st.session_state[key_status] = "Saved ✅"
-            
-                # ✅ USE BACKEND TIME (NOT local time)
+        
                 st.session_state[key_time] = response.get("last_updated", "Never")
+            else:
+                st.session_state[key_status] = "Failed ❌"
         # -------------------------
         # STATUS DISPLAY
         # -------------------------
