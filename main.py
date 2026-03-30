@@ -181,7 +181,7 @@ def add_item(item: Item):
             "ideal_qty": row[7],
             "low_stock_ratio": row[8],
             "consumption_rate": row[9],
-            "last_updated": row[10].strftime("%d %b %Y, %H:%M:%S")
+            "last_updated": row[10].isoformat()
         }
 
     except Exception as e:
