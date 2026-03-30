@@ -221,28 +221,25 @@ def delete_item(item_id: str):
 # UPDATE ITEM
 # =========================
 @app.put("/items/{item_id}")
-def update_item(item_id: str, item: ItemUpdate):
+def update_item(item_id: str, item: Item):
     conn = get_conn()
     cur = conn.cursor()
 
     try:
         cur.execute("""
             UPDATE items SET
-                name = COALESCE(%s, name),
-                shop_category = COALESCE(%s, shop_category),
-                unit = COALESCE(%s, unit),
-                unit_factor = COALESCE(%s, unit_factor),
-                irreplacable = COALESCE(%s, irreplacable),
-                current_qty = COALESCE(%s, current_qty),
-                ideal_qty = COALESCE(%s, ideal_qty),
-                low_stock_ratio = COALESCE(%s, low_stock_ratio),
-                consumption_rate = COALESCE(%s, consumption_rate),
-                last_updated = NOW()
-            WHERE id = %s
-            RETURNING 
-                id, name, shop_category, unit, unit_factor,
-                irreplacable, current_qty, ideal_qty,
-                low_stock_ratio, consumption_rate, last_updated
+                name=%s,
+                shop_category=%s,
+                unit=%s,
+                unit_factor=%s,
+                irreplacable=%s,
+                current_qty=%s,
+                ideal_qty=%s,
+                low_stock_ratio=%s,
+                consumption_rate=%s,
+                last_updated=NOW()
+            WHERE id=%s
+            RETURNING last_updated
         """, (
             item.name,
             item.shop_category,
@@ -264,17 +261,7 @@ def update_item(item_id: str, item: ItemUpdate):
         conn.commit()
 
         return {
-            "id": str(row[0]),
-            "name": row[1],
-            "shop_category": row[2],
-            "unit": row[3],
-            "unit_factor": row[4],
-            "irreplacable": row[5],
-            "current_qty": row[6],
-            "ideal_qty": row[7],
-            "low_stock_ratio": row[8],
-            "consumption_rate": row[9],
-            "last_updated": row[10].strftime("%d %b %Y, %H:%M:%S")
+            "last_updated": row[0].strftime("%d %b %Y, %H:%M:%S")
         }
 
     except Exception as e:
