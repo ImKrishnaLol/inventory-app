@@ -114,8 +114,35 @@ def needs_restock(item):
 # ITEM NODE COMPONENT (Proper Fix)
 # =========================
 def render_item_node(item):
+    key = f"qty_{item['id']}"
+
+    # Initialize state ONCE
+    if key not in st.session_state:
+        st.session_state[key] = int(item.get("current_qty", 0))
+
     with st.expander(f"📦 {item['name']}", expanded=False):
-        st.write(f"Quantity: {item.get('current_qty', 0)}")
+        # Editable quantity
+        new_qty = st.number_input(
+            "Quantity",
+            min_value=0,
+            step=1,
+            key=key
+        )
+
+        # Save button (CRUCIAL)
+        if st.button("💾 Save", key=f"save_{item['id']}"):
+            success = update_item(item["id"], {
+                **item,
+                "current_qty": new_qty
+            })
+
+            if success:
+                st.success("Saved")
+            else:
+                st.error("Failed to save")
+
+        # Show backend value (for clarity)
+        st.caption(f"Stored value: {item.get('current_qty', 0)}")
 
 
 
