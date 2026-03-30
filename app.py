@@ -131,6 +131,35 @@ def time_ago(timestamp_str):
     except:
         return timestamp_str
 
+def estimate_quantity(current_qty, ideal_qty, consumption_rate, last_updated_str):
+    if last_updated_str == "Never":
+        return current_qty
+
+    try:
+        last_updated = datetime.strptime(last_updated_str, "%d %b %Y, %H:%M:%S")
+        now = datetime.now()
+
+        # ⏱ time difference in days (fractional)
+        seconds_passed = (now - last_updated).total_seconds()
+        days_passed = seconds_passed / 86400  # 86400 sec = 1 day
+
+        if consumption_rate <= 0:
+            return current_qty  # avoid division issues
+
+        # 📉 consumption per day
+        daily_usage = ideal_qty / consumption_rate
+
+        # 📉 total used
+        used = daily_usage * days_passed
+
+        estimated = current_qty - used
+
+        # Don't go below 0
+        return max(0, round(estimated, 2))
+
+    except:
+        return current_qty
+
 
 # =========================
 # ITEM NODE COMPONENT (Proper Fix)
@@ -142,6 +171,12 @@ def render_item_node(item):
     key_saved = f"saved_{id_}"
     key_status = f"status_{id_}"
     key_time = f"time_{id_}"
+    estimated_qty = estimate_quantity(
+        current_qty=st.session_state[key_saved],
+        ideal_qty=item.get("ideal_qty", 0),
+        consumption_rate=item.get("consumption_rate", 1),
+        last_updated_str=st.session_state[key_time]
+    )
 
     # -------------------------
     # INITIALIZE STATE
@@ -162,7 +197,8 @@ def render_item_node(item):
     # UI
     # -------------------------
     with st.expander(f"📦 {item['name']}", expanded=False):
-
+        
+        st.caption(f"Estimated current quantity: {estimated_qty}")
         new_qty = st.number_input(
             "Quantity",
             min_value=0,
