@@ -118,11 +118,11 @@ def render_item_node(item):
 
     key_qty = f"qty_{id_}"
     key_saved = f"saved_{id_}"
-    key_last_change = f"last_change_{id_}"
     key_status = f"status_{id_}"
+    key_time = f"time_{id_}"
 
     # -------------------------
-    # INIT STATE
+    # INITIALIZE STATE
     # -------------------------
     if key_qty not in st.session_state:
         st.session_state[key_qty] = int(item.get("current_qty", 0))
@@ -130,11 +130,11 @@ def render_item_node(item):
     if key_saved not in st.session_state:
         st.session_state[key_saved] = int(item.get("current_qty", 0))
 
-    if key_last_change not in st.session_state:
-        st.session_state[key_last_change] = 0
-
     if key_status not in st.session_state:
         st.session_state[key_status] = "Idle"
+
+    if key_time not in st.session_state:
+        st.session_state[key_time] = "Never"
 
     # -------------------------
     # UI
@@ -148,24 +148,10 @@ def render_item_node(item):
             key=key_qty
         )
 
-        now = time.time()
-
         # -------------------------
-        # DETECT CHANGE
+        # AUTOSAVE LOGIC
         # -------------------------
         if new_qty != st.session_state[key_saved]:
-            st.session_state[key_last_change] = now
-            st.session_state[key_status] = "Editing..."
-
-        # -------------------------
-        # DEBOUNCED AUTOSAVE
-        # -------------------------
-        time_since_change = now - st.session_state[key_last_change]
-
-        if (
-            new_qty != st.session_state[key_saved]
-            and time_since_change > 0.7   # ⏳ debounce time
-        ):
             st.session_state[key_status] = "Saving..."
 
             success = update_item(item["id"], {
@@ -176,16 +162,18 @@ def render_item_node(item):
             if success:
                 st.session_state[key_saved] = new_qty
                 st.session_state[key_status] = "Saved ✅"
+
+                # 🕒 UPDATE TIME HERE
+                st.session_state[key_time] = datetime.now().strftime("%d %b %Y, %H:%M:%S")
+
             else:
                 st.session_state[key_status] = "Failed ❌"
 
-            st.rerun()  # 🔁 force UI refresh
-
         # -------------------------
-        # STATUS
+        # STATUS DISPLAY
         # -------------------------
         st.caption(f"Status: {st.session_state[key_status]}")
-
+        st.caption(f"Last updated: {st.session_state[key_time]}")
 
 
 def render_tree(group_id, group_name, items_dict, visited=None):
