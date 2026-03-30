@@ -232,7 +232,7 @@ def render_item_node(item, path=""):
             st.session_state[key_qty] = 0
             st.session_state[f"set_empty_{unique_id}"] = False
 
-        new_qty = st.number_input(
+        st.number_input(
             "Quantity",
             min_value=0,
             step=1,
@@ -246,16 +246,20 @@ def render_item_node(item, path=""):
         
         if col1.button("🔼 Full", key=f"full_{unique_id}"):
             st.session_state[f"set_full_{unique_id}"] = True
+            st.rerun()
         
         if col2.button("🔽 Empty", key=f"empty_{unique_id}"):
             st.session_state[f"set_empty_{unique_id}"] = True
+            st.rerun()
 
         # -------------------------
         # AUTOSAVE
         # -------------------------
-        if new_qty != st.session_state[key_saved]:
+        current_val = st.session_state[key_qty]
+        
+        if current_val != st.session_state[key_saved]:
             st.session_state[key_status] = "Saving..."
-
+        
             response = update_item(item["id"], {
                 "id": item["id"],
                 "name": item["name"],
@@ -263,19 +267,18 @@ def render_item_node(item, path=""):
                 "unit": item["unit"],
                 "unit_factor": item["unit_factor"],
                 "irreplacable": item["irreplacable"],
-                "current_qty": new_qty,
+                "current_qty": current_val,
                 "ideal_qty": item["ideal_qty"],
                 "low_stock_ratio": item["low_stock_ratio"],
                 "consumption_rate": item["consumption_rate"]
             })
-
+        
             if response:
-                st.session_state[key_saved] = new_qty
+                st.session_state[key_saved] = current_val
                 st.session_state[key_status] = "Saved ✅"
                 st.session_state[key_time] = response.get("last_updated", "Never")
             else:
                 st.session_state[key_status] = "Failed ❌"
-
         # -------------------------
         # STATUS
         # -------------------------
