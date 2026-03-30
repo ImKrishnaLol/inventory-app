@@ -187,7 +187,7 @@ def estimate_quantity(current_qty, ideal_qty, consumption_rate, last_updated_str
         return current_qty
 
 # =========================
-# ITEM NODE COMPONENT (Proper Fix)
+# ITEM NODE COMPONENT (Fixed)
 # =========================
 def render_item_node(item, path=""):
     id_ = item["id"]
@@ -244,14 +244,9 @@ def render_item_node(item, path=""):
         # -------------------------
         # NUMBER INPUT
         # -------------------------
-        factor = item.get("unit_factor", 1)
-        unit = item.get("unit", "")
-        
-        # Determine numeric type
         is_float = not float(factor).is_integer()
-        
         st.session_state.setdefault(display_key, st.session_state[key_qty] * factor)
-        
+
         if is_float:
             display_qty = st.number_input(
                 f"Quantity ({unit})",
@@ -268,9 +263,10 @@ def render_item_node(item, path=""):
                 value=int(st.session_state[display_key]),
                 key=display_key
             )
-        
+
         # Sync UI → stored
         st.session_state[key_qty] = int(display_qty / factor)
+
         # -------------------------
         # QUICK BUTTONS
         # -------------------------
@@ -316,7 +312,6 @@ def render_item_node(item, path=""):
         raw_time = st.session_state[key_time]
         st.caption(f"Status: {st.session_state[key_status]}")
         st.caption(f"Last updated: {time_ago(raw_time)} ({format_time(raw_time)})")
-
 def render_tree(group_id, group_name, items_dict, path="", visited=None):
     if visited is None:
         visited = set()
