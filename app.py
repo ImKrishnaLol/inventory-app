@@ -60,9 +60,11 @@ def delete_item(item_id):
 def update_item(item_id, item_data):
     try:
         r = requests.put(f"{API}/items/{item_id}", json=item_data)
-        return r.status_code == 200
+        if r.status_code == 200:
+            return r.json()   # ← IMPORTANT
+        return None
     except:
-        return False
+        return None
 
 def fetch_groups():
     try:
@@ -186,7 +188,7 @@ def render_item_node(item):
         st.session_state[key_status] = "Idle"
 
     if key_time not in st.session_state:
-        st.session_state[key_time] = "Never"
+        st.session_state[key_time] = item.get("last_updated") or "Never"
 
     estimated_qty = estimate_quantity(
         current_qty=st.session_state.get(key_saved, item.get("current_qty", 0)),
@@ -211,22 +213,24 @@ def render_item_node(item):
         # AUTOSAVE LOGIC
         # -------------------------
         if new_qty != st.session_state[key_saved] and st.session_state[key_status] != "Saving...":
-            st.session_state[key_status] = "Saving..."
-
-            success = update_item(item["id"], {
-                "current_qty": new_qty
-            })
-
-            if success:
-                st.session_state[key_saved] = new_qty
-                st.session_state[key_status] = "Saved ✅"
-
-                # 🕒 UPDATE TIME HERE
-                st.session_state[key_time] = datetime.now().strftime("%d %b %Y, %H:%M:%S")
-
-            else:
-                st.session_state[key_status] = "Failed ❌"
-
+        st.session_state[key_status] = "Saving..."
+    
+        updated_item = {
+            **item,
+            "current_qty": new_qty
+        }
+    
+        result = update_item(item["id"], updated_item)
+    
+        if result:
+            st.session_state[key_saved] = new_qty
+            st.session_state[key_status] = "Saved ✅"
+    
+            # ✅ USE BACKEND TIME
+            st.session_state[key_time] = result.get("last_updated", "Never")
+    
+        else:
+            st.session_state[key_status] = "Failed ❌"
         # -------------------------
         # STATUS DISPLAY
         # -------------------------
