@@ -193,10 +193,11 @@ def render_item_node(item, path=""):
     id_ = item["id"]
     unique_id = f"{id_}_{path}"
 
-    key_qty = f"qty_{unique_id}"
+    key_qty = f"qty_{unique_id}"          # stored (packs)
     key_saved = f"saved_{unique_id}"
     key_status = f"status_{unique_id}"
     key_time = f"time_{unique_id}"
+    display_key = f"display_{unique_id}"  # UI (units)
 
     # -------------------------
     # INIT STATE
@@ -213,6 +214,12 @@ def render_item_node(item, path=""):
     if key_time not in st.session_state:
         st.session_state[key_time] = item.get("last_updated") or "Never"
 
+    factor = item.get("unit_factor", 1)
+    unit = item.get("unit", "")
+
+    # -------------------------
+    # ESTIMATION (stored units)
+    # -------------------------
     estimated_qty = estimate_quantity(
         current_qty=st.session_state[key_saved],
         ideal_qty=item.get("ideal_qty", 0),
@@ -225,59 +232,64 @@ def render_item_node(item, path=""):
     # -------------------------
     with st.expander(f"📦 {item['name']}", expanded=False):
 
-        factor = item.get("unit_factor", 1)
-        unit = item.get("unit", "")
-        
-        display_estimated = round(estimated_qty * factor, 2)
-        display_ideal = round(item["ideal_qty"] * factor, 2)
-        
-        st.text(f"Estimated: {display_estimated} {unit}")
-        st.caption(f"Ideal: {display_ideal} {unit}")
+        # Display converted values
+        st.text(f"Estimated: {round(estimated_qty * factor, 2)} {unit}")
+        st.caption(f"Ideal: {round(item['ideal_qty'] * factor, 2)} {unit}")
 
         # -------------------------
-        # APPLY BUTTON ACTIONS (BEFORE WIDGET)
+        # APPLY BUTTON FLAGS (before input)
         # -------------------------
         if st.session_state.get(f"set_full_{unique_id}", False):
             st.session_state[key_qty] = int(item["ideal_qty"])
+            st.session_state[display_key] = st.session_state[key_qty] * factor
             st.session_state[f"set_full_{unique_id}"] = False
-        
+
         if st.session_state.get(f"set_empty_{unique_id}", False):
             st.session_state[key_qty] = 0
+            st.session_state[display_key] = 0
             st.session_state[f"set_empty_{unique_id}"] = False
 
-        factor = item.get("unit_factor", 1)
+        # -------------------------
+        # INIT DISPLAY STATE (ONCE)
+        # -------------------------
+        if display_key not in st.session_state:
+            st.session_state[display_key] = st.session_state[key_qty] * factor
 
+        # -------------------------
+        # INPUT (ONLY ONE!)
+        # -------------------------
         display_qty = st.number_input(
-            f"Quantity ({item['unit']})",
+            f"Quantity ({unit})",
             min_value=0.0,
             step=float(factor),
-            value=st.session_state[key_qty] * factor
+            key=display_key
         )
-        
-        # Convert back to stored value
+
+        # Convert UI → stored
         new_qty = int(display_qty / factor)
-        st.session_state[key_qty] = new_qty
+
+        if new_qty != st.session_state[key_qty]:
+            st.session_state[key_qty] = new_qty
+
         # -------------------------
         # QUICK BUTTONS
         # -------------------------
         col1, col2 = st.columns(2)
-        
+
         if col1.button("🔼 Full", key=f"full_{unique_id}"):
             st.session_state[f"set_full_{unique_id}"] = True
-            st.rerun()
-        
+
         if col2.button("🔽 Empty", key=f"empty_{unique_id}"):
             st.session_state[f"set_empty_{unique_id}"] = True
-            st.rerun()
 
         # -------------------------
-        # AUTOSAVE
+        # AUTOSAVE (backend sync)
         # -------------------------
         current_val = st.session_state[key_qty]
-        
+
         if current_val != st.session_state[key_saved]:
             st.session_state[key_status] = "Saving..."
-        
+
             response = update_item(item["id"], {
                 "id": item["id"],
                 "name": item["name"],
@@ -290,13 +302,14 @@ def render_item_node(item, path=""):
                 "low_stock_ratio": item["low_stock_ratio"],
                 "consumption_rate": item["consumption_rate"]
             })
-        
+
             if response:
                 st.session_state[key_saved] = current_val
                 st.session_state[key_status] = "Saved ✅"
                 st.session_state[key_time] = response.get("last_updated", "Never")
             else:
                 st.session_state[key_status] = "Failed ❌"
+
         # -------------------------
         # STATUS
         # -------------------------
