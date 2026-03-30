@@ -171,12 +171,7 @@ def render_item_node(item):
     key_saved = f"saved_{id_}"
     key_status = f"status_{id_}"
     key_time = f"time_{id_}"
-    estimated_qty = estimate_quantity(
-        current_qty=st.session_state.get(key_saved, item.get("current_qty", 0)),
-        ideal_qty=item.get("ideal_qty", 0),
-        consumption_rate=item.get("consumption_rate", 1),
-        last_updated_str=st.session_state.get(key_time, "Never")
-    )
+
 
     # -------------------------
     # INITIALIZE STATE
@@ -193,6 +188,12 @@ def render_item_node(item):
     if key_time not in st.session_state:
         st.session_state[key_time] = "Never"
 
+    estimated_qty = estimate_quantity(
+        current_qty=st.session_state.get(key_saved, item.get("current_qty", 0)),
+        ideal_qty=item.get("ideal_qty", 0),
+        consumption_rate=item.get("consumption_rate", 1),
+        last_updated_str=st.session_state.get(key_time, "Never")
+    )
     # -------------------------
     # UI
     # -------------------------
@@ -209,11 +210,10 @@ def render_item_node(item):
         # -------------------------
         # AUTOSAVE LOGIC
         # -------------------------
-        if new_qty != st.session_state[key_saved]:
+        if new_qty != st.session_state[key_saved] and st.session_state[key_status] != "Saving...":
             st.session_state[key_status] = "Saving..."
 
             success = update_item(item["id"], {
-                **item,
                 "current_qty": new_qty
             })
 
