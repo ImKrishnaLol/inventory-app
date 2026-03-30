@@ -198,7 +198,7 @@ def render_item_node(item):
     # -------------------------
     with st.expander(f"📦 {item['name']}", expanded=False):
         
-        st.caption(f"Estimated current quantity: {estimated_qty}")
+        st.text(f"Estimated current quantity: {estimated_qty}")
         new_qty = st.number_input(
             "Quantity",
             min_value=0,
