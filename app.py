@@ -109,6 +109,16 @@ def delete_member(member_id):
 def needs_restock(item):
     return True
 
+def format_time(timestamp_str):
+    if not timestamp_str or timestamp_str == "Never":
+        return "Never"
+
+    dt = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
+    IST = timezone(timedelta(hours=5, minutes=30))
+    dt = dt.astimezone(IST)
+
+    return dt.strftime("%d %b %Y, %I:%M %p")
+
 def time_ago(timestamp_str):
     if not timestamp_str or timestamp_str == "Never":
         return "Never"
@@ -242,7 +252,7 @@ def render_item_node(item):
         # -------------------------
         st.caption(f"Status: {st.session_state[key_status]}")
         st.caption(
-            f"Last updated: {time_ago(st.session_state[key_time])} "
+            f"Last updated: {time_ago(f"({format_time(st.session_state[key_time])})")} "
             f"({st.session_state[key_time]})"
         )
 
