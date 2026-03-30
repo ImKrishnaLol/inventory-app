@@ -110,12 +110,19 @@ def needs_restock(item):
     return True
 
 def time_ago(timestamp_str):
-    if timestamp_str == "Never":
+    if not timestamp_str or timestamp_str == "Never":
         return "Never"
 
     try:
-        past = datetime.strptime(timestamp_str, "%d %b %Y, %H:%M:%S")
-        now = datetime.now()
+        # Handle ISO format from backend (UTC)
+        past = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
+
+        # Convert to IST
+        IST = timezone(timedelta(hours=5, minutes=30))
+        past = past.astimezone(IST)
+
+        now = datetime.now(IST)
+
         diff = (now - past).total_seconds()
 
         if diff < 5:
@@ -128,38 +135,35 @@ def time_ago(timestamp_str):
             return f"{int(diff // 3600)} hr ago"
         else:
             return f"{int(diff // 86400)} day(s) ago"
-    except:
-        return timestamp_str
+
+    except Exception as e:
+        return f"Error: {timestamp_str}"
 
 def estimate_quantity(current_qty, ideal_qty, consumption_rate, last_updated_str):
-    if last_updated_str == "Never":
+    if not last_updated_str or last_updated_str == "Never":
         return current_qty
 
     try:
-        last_updated = datetime.strptime(last_updated_str, "%d %b %Y, %H:%M:%S")
-        now = datetime.now()
+        last_updated = datetime.fromisoformat(last_updated_str.replace("Z", "+00:00"))
 
-        # ⏱ time difference in days (fractional)
+        IST = timezone(timedelta(hours=5, minutes=30))
+        last_updated = last_updated.astimezone(IST)
+
+        now = datetime.now(IST)
+
         seconds_passed = (now - last_updated).total_seconds()
-        days_passed = seconds_passed / 86400  # 86400 sec = 1 day
+        days_passed = seconds_passed / 86400
 
         if consumption_rate <= 0:
-            return current_qty  # avoid division issues
+            return current_qty
 
-        # 📉 consumption per day
         daily_usage = ideal_qty / consumption_rate
-
-        # 📉 total used
         used = daily_usage * days_passed
 
-        estimated = current_qty - used
-
-        # Don't go below 0
-        return max(0, round(estimated, 2))
+        return max(0, round(current_qty - used, 2))
 
     except:
         return current_qty
-
 
 # =========================
 # ITEM NODE COMPONENT (Proper Fix)
