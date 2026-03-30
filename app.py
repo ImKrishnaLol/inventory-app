@@ -307,7 +307,7 @@ def render_tree(group_id, group_name, items_dict, path="", visited=None):
                     child_name,
                     items_dict,
                     path=f"{path}/{group_id}",
-                    visited.copy()
+                    visited=visited.copy()
                 )
 
 # =========================
