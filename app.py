@@ -255,9 +255,11 @@ def render_item_node(item):
         # STATUS DISPLAY
         # -------------------------
         st.caption(f"Status: {st.session_state[key_status]}")
+        raw_time = st.session_state[key_time]
+
         st.caption(
-            f"Last updated: {time_ago(f"({format_time(st.session_state[key_time])})")} "
-            f"({st.session_state[key_time]})"
+            f"Last updated: {time_ago(raw_time)} "
+            f"({format_time(raw_time)})"
         )
 
 
