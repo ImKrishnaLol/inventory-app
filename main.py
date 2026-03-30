@@ -121,7 +121,7 @@ def get_items():
                 "ideal_qty": r[7],
                 "low_stock_ratio": r[8],
                 "consumption_rate": r[9],
-                "last_updated": r[10].strftime("%d %b %Y, %H:%M:%S") if r[10] else None
+                "last_updated": r[10].isoformat() if r[10] else None
             }
             for r in rows
         ]
@@ -260,7 +260,7 @@ def update_item(item_id: str, item: Item):
         conn.commit()
 
         return {
-            "last_updated": new_time.strftime("%d %b %Y, %H:%M:%S")
+            "last_updated": new_time.isoformat()
         }
 
     except Exception as e:
