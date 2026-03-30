@@ -55,6 +55,17 @@ class GroupMember(BaseModel):
     item_id: Optional[str] = None
     child_group_id: Optional[str] = None
 
+class ItemUpdate(BaseModel):
+    name: Optional[str] = None
+    shop_category: Optional[str] = None
+    unit: Optional[str] = None
+    unit_factor: Optional[int] = None
+    irreplacable: Optional[bool] = None
+    current_qty: Optional[int] = None
+    ideal_qty: Optional[int] = None
+    low_stock_ratio: Optional[float] = None
+    consumption_rate: Optional[float] = None
+
 # =========================
 # ROOT (Health Check)
 # =========================
@@ -110,7 +121,7 @@ def get_items():
                 "ideal_qty": r[7],
                 "low_stock_ratio": r[8],
                 "consumption_rate": r[9],
-                "last_updated": str(r[10]) if r[10] else ""
+                "last_updated": r[10].strftime("%d %b %Y, %H:%M:%S") if r[10] else None
             }
             for r in rows
         ]
@@ -136,9 +147,13 @@ def add_item(item: Item):
             INSERT INTO items (
                 id, name, shop_category, unit, unit_factor,
                 irreplacable, current_qty, ideal_qty,
-                low_stock_ratio, consumption_rate
+                low_stock_ratio, consumption_rate, last_updated
             )
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW())
+            RETURNING 
+                id, name, shop_category, unit, unit_factor,
+                irreplacable, current_qty, ideal_qty,
+                low_stock_ratio, consumption_rate, last_updated
         """, (
             item_id,
             item.name,
@@ -152,12 +167,21 @@ def add_item(item: Item):
             item.consumption_rate
         ))
 
+        row = cur.fetchone()
         conn.commit()
 
         return {
-            "id": item_id,
-            **item.dict(),
-            "last_updated": ""
+            "id": str(row[0]),
+            "name": row[1],
+            "shop_category": row[2],
+            "unit": row[3],
+            "unit_factor": row[4],
+            "irreplacable": row[5],
+            "current_qty": row[6],
+            "ideal_qty": row[7],
+            "low_stock_ratio": row[8],
+            "consumption_rate": row[9],
+            "last_updated": row[10].strftime("%d %b %Y, %H:%M:%S")
         }
 
     except Exception as e:
@@ -197,24 +221,28 @@ def delete_item(item_id: str):
 # UPDATE ITEM
 # =========================
 @app.put("/items/{item_id}")
-def update_item(item_id: str, item: Item):
+def update_item(item_id: str, item: ItemUpdate):
     conn = get_conn()
     cur = conn.cursor()
 
     try:
         cur.execute("""
             UPDATE items SET
-                name=%s,
-                shop_category=%s,
-                unit=%s,
-                unit_factor=%s,
-                irreplacable=%s,
-                current_qty=%s,
-                ideal_qty=%s,
-                low_stock_ratio=%s,
-                consumption_rate=%s,
-                last_updated=NOW()
-            WHERE id=%s
+                name = COALESCE(%s, name),
+                shop_category = COALESCE(%s, shop_category),
+                unit = COALESCE(%s, unit),
+                unit_factor = COALESCE(%s, unit_factor),
+                irreplacable = COALESCE(%s, irreplacable),
+                current_qty = COALESCE(%s, current_qty),
+                ideal_qty = COALESCE(%s, ideal_qty),
+                low_stock_ratio = COALESCE(%s, low_stock_ratio),
+                consumption_rate = COALESCE(%s, consumption_rate),
+                last_updated = NOW()
+            WHERE id = %s
+            RETURNING 
+                id, name, shop_category, unit, unit_factor,
+                irreplacable, current_qty, ideal_qty,
+                low_stock_ratio, consumption_rate, last_updated
         """, (
             item.name,
             item.shop_category,
@@ -228,11 +256,26 @@ def update_item(item_id: str, item: Item):
             item_id
         ))
 
-        if cur.rowcount == 0:
+        row = cur.fetchone()
+
+        if not row:
             raise HTTPException(status_code=404, detail="Item not found")
 
         conn.commit()
-        return {"message": "Item updated"}
+
+        return {
+            "id": str(row[0]),
+            "name": row[1],
+            "shop_category": row[2],
+            "unit": row[3],
+            "unit_factor": row[4],
+            "irreplacable": row[5],
+            "current_qty": row[6],
+            "ideal_qty": row[7],
+            "low_stock_ratio": row[8],
+            "consumption_rate": row[9],
+            "last_updated": row[10].strftime("%d %b %Y, %H:%M:%S")
+        }
 
     except Exception as e:
         conn.rollback()
