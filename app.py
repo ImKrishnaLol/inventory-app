@@ -182,17 +182,17 @@ def estimate_quantity(current_qty, ideal_qty, consumption_rate, last_updated_str
 # =========================
 # ITEM NODE COMPONENT (Proper Fix)
 # =========================
-def render_item_node(item):
+def render_item_node(item, path=""):
     id_ = item["id"]
+    unique_id = f"{id_}_{path}"
 
-    key_qty = f"qty_{id_}"
-    key_saved = f"saved_{id_}"
-    key_status = f"status_{id_}"
-    key_time = f"time_{id_}"
-
+    key_qty = f"qty_{unique_id}"
+    key_saved = f"saved_{unique_id}"
+    key_status = f"status_{unique_id}"
+    key_time = f"time_{unique_id}"
 
     # -------------------------
-    # INITIALIZE STATE
+    # INIT STATE
     # -------------------------
     if key_qty not in st.session_state:
         st.session_state[key_qty] = int(item.get("current_qty", 0))
@@ -207,23 +207,18 @@ def render_item_node(item):
         st.session_state[key_time] = item.get("last_updated") or "Never"
 
     estimated_qty = estimate_quantity(
-        current_qty=st.session_state.get(key_saved, item.get("current_qty", 0)),
+        current_qty=st.session_state[key_saved],
         ideal_qty=item.get("ideal_qty", 0),
         consumption_rate=item.get("consumption_rate", 1),
-        last_updated_str=st.session_state.get(key_time, "Never")
+        last_updated_str=st.session_state[key_time]
     )
+
     # -------------------------
     # UI
     # -------------------------
     with st.expander(f"📦 {item['name']}", expanded=False):
-        
+
         st.text(f"Estimated current quantity: {estimated_qty}")
-        new_qty = st.number_input(
-            "Quantity",
-            min_value=0,
-            step=1,
-            key=key_qty
-        )
         st.caption(f"Ideal: {item['ideal_qty']} {item['unit']}")
 
         new_qty = st.number_input(
@@ -233,24 +228,25 @@ def render_item_node(item):
             key=key_qty
         )
 
+        # -------------------------
+        # QUICK BUTTONS
+        # -------------------------
         col1, col2 = st.columns(2)
 
-        with col1:
-            if st.button("🔼 Full", key=f"full_{id_}"):
-                st.session_state[key_qty] = int(item["ideal_qty"])
-                st.rerun()
-        
-        with col2:
-            if st.button("🔽 Empty", key=f"empty_{id_}"):
-                st.session_state[key_qty] = 0
-                st.rerun()
+        if col1.button("🔼 Full", key=f"full_{unique_id}"):
+            st.session_state[key_qty] = int(item["ideal_qty"])
+            st.rerun()
+
+        if col2.button("🔽 Empty", key=f"empty_{unique_id}"):
+            st.session_state[key_qty] = 0
+            st.rerun()
 
         # -------------------------
-        # AUTOSAVE LOGIC
+        # AUTOSAVE
         # -------------------------
         if new_qty != st.session_state[key_saved]:
             st.session_state[key_status] = "Saving..."
-        
+
             response = update_item(item["id"], {
                 "id": item["id"],
                 "name": item["name"],
@@ -263,28 +259,26 @@ def render_item_node(item):
                 "low_stock_ratio": item["low_stock_ratio"],
                 "consumption_rate": item["consumption_rate"]
             })
-        
+
             if response:
                 st.session_state[key_saved] = new_qty
                 st.session_state[key_status] = "Saved ✅"
-        
                 st.session_state[key_time] = response.get("last_updated", "Never")
             else:
                 st.session_state[key_status] = "Failed ❌"
+
         # -------------------------
-        # STATUS DISPLAY
+        # STATUS
         # -------------------------
-        st.caption(f"Status: {st.session_state[key_status]}")
         raw_time = st.session_state[key_time]
 
+        st.caption(f"Status: {st.session_state[key_status]}")
         st.caption(
             f"Last updated: {time_ago(raw_time)} "
             f"({format_time(raw_time)})"
         )
 
-
-def render_tree(group_id, group_name, items_dict, visited=None):
-    """Recursive function to display group tree."""
+def render_tree(group_id, group_name, items_dict, path="", visited=None):
     if visited is None:
         visited = set()
 
@@ -301,19 +295,18 @@ def render_tree(group_id, group_name, items_dict, visited=None):
             return
 
         for m in members:
-            # Item node
             if m.get("item_id"):
                 item = items_dict.get(m["item_id"])
                 if item and needs_restock(item):
-                    render_item_node(item)
+                    render_item_node(item, path=f"{path}/{group_id}")
 
-            # Child group node
             elif m.get("child_group_id"):
                 child_name = m.get("group_name", "Unnamed Group")
                 render_tree(
                     m["child_group_id"],
                     child_name,
                     items_dict,
+                    path=f"{path}/{group_id}",
                     visited.copy()
                 )
 
@@ -370,7 +363,7 @@ if page == "🏠 Home":
             st.write("✅ Nothing else")
         else:
             for item in remaining:
-                render_item_node(item)
+                render_item_node(item, path="root")
 
 # =========================
 # SYSTEM STATUS PAGE
