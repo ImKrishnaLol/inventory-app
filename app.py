@@ -109,20 +109,11 @@ def delete_member(member_id):
 def needs_restock(item):
     return True
 
-# =========================
-# BACKGROUND UPDATE
-# =========================
-def update_qty_background(item_id: int, new_qty: int):
-    """Update the backend quantity in a separate thread."""
-    def _update():
-        update_item(item_id, {"current_qty": new_qty})
-    threading.Thread(target=_update, daemon=True).start()
-
 
 # =========================
 # ITEM NODE COMPONENT (Proper Fix)
 # =========================
-def render_item_node_debug(item):
+def render_item_node(item):
     key_qty = f"qty_{item['id']}"
     key_status = f"status_{item['id']}"
 
@@ -132,56 +123,7 @@ def render_item_node_debug(item):
         st.session_state[key_status] = "Ready"
 
     def update_backend_full(item):
-        """Send full item to backend asynchronously"""
-        try:
-            st.session_state[key_status] = "Saving..."
-            payload = {
-                "id": item["id"],
-                "name": item["name"],
-                "shop_category": item["shop_category"],
-                "unit": item["unit"],
-                "unit_factor": item["unit_factor"],
-                "irreplacable": item["irreplacable"],
-                "current_qty": st.session_state[key_qty],
-                "ideal_qty": item.get("ideal_qty", 0),
-                "low_stock_ratio": item.get("low_stock_ratio", 0.3),
-                "consumption_rate": item.get("consumption_rate", 0.01)
-            }
-            st.write(f"DEBUG: Updating backend for {item['name']} with", payload)
-            success = update_item(item["id"], payload)
-            st.session_state[key_status] = "Saved" if success else "Failed"
-        except Exception as e:
-            st.session_state[key_status] = f"Error: {e}"
-
-    with st.expander(f"📦 {item['name']}", expanded=True):
-        # Number input for quantity
-        new_qty = st.number_input(
-            "Update Quantity",
-            min_value=0,
-            value=st.session_state[key_qty],
-            step=1,
-            key=f"input_{item['id']}"
-        )
-
-        if new_qty != st.session_state[key_qty]:
-            st.session_state[key_qty] = new_qty
-            threading.Thread(target=update_backend_full, args=(item,), daemon=True).start()
-
-        st.write("Status:", st.session_state[key_status])
-        st.write("Session Value:", st.session_state[key_qty])
-        st.write("Backend Original Value:", item["current_qty"])
-
-        col1, col2 = st.columns(2)
-        ideal_qty = int(item.get("ideal_qty") or 0)
-
-        # Quick buttons
-        if col1.button("Set to 0", key=f"zero_{item['id']}"):
-            st.session_state[key_qty] = 0
-            threading.Thread(target=update_backend_full, args=(item,), daemon=True).start()
-
-        if col2.button("Set to Ideal", key=f"ideal_{item['id']}"):
-            st.session_state[key_qty] = ideal_qty
-            threading.Thread(target=update_backend_full, args=(item,), daemon=True).start()
+        pass
 
 
 
