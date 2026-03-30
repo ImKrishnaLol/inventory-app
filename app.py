@@ -193,21 +193,26 @@ def render_item_node(item, path=""):
     id_ = item["id"]
     unique_id = f"{id_}_{path}"
 
-    key_qty = f"qty_{unique_id}"          # stored (packs)
-    key_saved = f"saved_{unique_id}"     # last saved
+    # Keys
+    key_qty = f"qty_{unique_id}"          # stored packs
+    key_saved = f"saved_{unique_id}"     # last saved value
     key_status = f"status_{unique_id}"
     key_time = f"time_{unique_id}"       # last updated
-    display_key = f"display_{unique_id}" # UI (units)
+    display_key = f"display_{unique_id}" # value shown in number_input
 
     factor = item.get("unit_factor", 1)
     unit = item.get("unit", "")
 
+    # -------------------------
     # INIT STATE
+    # -------------------------
     st.session_state.setdefault(key_qty, int(item.get("current_qty", 0)))
     st.session_state.setdefault(key_saved, int(item.get("current_qty", 0)))
     st.session_state.setdefault(key_status, "Idle")
     st.session_state.setdefault(key_time, item.get("last_updated") or "Never")
     st.session_state.setdefault(display_key, st.session_state[key_qty] * factor)
+    st.session_state.setdefault(f"set_full_{unique_id}", False)
+    st.session_state.setdefault(f"set_empty_{unique_id}", False)
 
     estimated_qty = estimate_quantity(
         current_qty=st.session_state[key_saved],
@@ -217,21 +222,28 @@ def render_item_node(item, path=""):
     )
 
     with st.expander(f"📦 {item['name']}", expanded=False):
-        # Display calculated info
+        # -------------------------
+        # DISPLAY INFO
+        # -------------------------
         st.text(f"Estimated: {round(estimated_qty * factor, 2)} {unit}")
         st.caption(f"Ideal: {round(item['ideal_qty'] * factor, 2)} {unit}")
 
-        # QUICK BUTTONS
-        col1, col2 = st.columns(2)
-        if col1.button("🔼 Full", key=f"full_{unique_id}"):
+        # -------------------------
+        # APPLY FULL/EMPTY FLAGS
+        # -------------------------
+        if st.session_state.get(f"set_full_{unique_id}"):
             st.session_state[key_qty] = int(item["ideal_qty"])
             st.session_state[display_key] = st.session_state[key_qty] * factor
+            st.session_state[f"set_full_{unique_id}"] = False
 
-        if col2.button("🔽 Empty", key=f"empty_{unique_id}"):
+        if st.session_state.get(f"set_empty_{unique_id}"):
             st.session_state[key_qty] = 0
             st.session_state[display_key] = 0
+            st.session_state[f"set_empty_{unique_id}"] = False
 
+        # -------------------------
         # NUMBER INPUT
+        # -------------------------
         display_qty = st.number_input(
             f"Quantity ({unit})",
             min_value=0.0,
@@ -240,13 +252,26 @@ def render_item_node(item, path=""):
             key=display_key
         )
 
-        # Update stored value instantly (UI feels responsive)
-        st.session_state[key_qty] = int(display_qty / factor)
+        # Sync UI → stored
+        new_qty = int(display_qty / factor)
+        st.session_state[key_qty] = new_qty
 
         # -------------------------
-        # AUTOSAVE (non-blocking)
+        # QUICK BUTTONS
         # -------------------------
-        if st.session_state[key_qty] != st.session_state[key_saved]:
+        col1, col2 = st.columns(2)
+        if col1.button("🔼 Full", key=f"full_{unique_id}"):
+            st.session_state[f"set_full_{unique_id}"] = True
+            st.rerun()
+        if col2.button("🔽 Empty", key=f"empty_{unique_id}"):
+            st.session_state[f"set_empty_{unique_id}"] = True
+            st.rerun()
+
+        # -------------------------
+        # AUTOSAVE
+        # -------------------------
+        current_val = st.session_state[key_qty]
+        if current_val != st.session_state[key_saved]:
             st.session_state[key_status] = "Saving..."
             try:
                 response = update_item(item["id"], {
@@ -256,13 +281,13 @@ def render_item_node(item, path=""):
                     "unit": item["unit"],
                     "unit_factor": item["unit_factor"],
                     "irreplacable": item["irreplacable"],
-                    "current_qty": st.session_state[key_qty],
+                    "current_qty": current_val,
                     "ideal_qty": item["ideal_qty"],
                     "low_stock_ratio": item["low_stock_ratio"],
                     "consumption_rate": item["consumption_rate"]
                 })
                 if response:
-                    st.session_state[key_saved] = st.session_state[key_qty]
+                    st.session_state[key_saved] = current_val
                     st.session_state[key_status] = "Saved ✅"
                     st.session_state[key_time] = response.get("last_updated", "Never")
                 else:
@@ -270,7 +295,9 @@ def render_item_node(item, path=""):
             except:
                 st.session_state[key_status] = "Failed ❌"
 
-        # Status info
+        # -------------------------
+        # STATUS
+        # -------------------------
         raw_time = st.session_state[key_time]
         st.caption(f"Status: {st.session_state[key_status]}")
         st.caption(f"Last updated: {time_ago(raw_time)} ({format_time(raw_time)})")
