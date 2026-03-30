@@ -172,10 +172,10 @@ def render_item_node(item):
     key_status = f"status_{id_}"
     key_time = f"time_{id_}"
     estimated_qty = estimate_quantity(
-        current_qty=st.session_state[key_saved],
+        current_qty=st.session_state.get(key_saved, item.get("current_qty", 0)),
         ideal_qty=item.get("ideal_qty", 0),
         consumption_rate=item.get("consumption_rate", 1),
-        last_updated_str=st.session_state[key_time]
+        last_updated_str=st.session_state.get(key_time, "Never")
     )
 
     # -------------------------
