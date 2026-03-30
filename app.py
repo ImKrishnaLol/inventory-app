@@ -60,9 +60,7 @@ def delete_item(item_id):
 def update_item(item_id, item_data):
     try:
         r = requests.put(f"{API}/items/{item_id}", json=item_data)
-        if r.status_code == 200:
-            return r.json()   # ← IMPORTANT
-        return None
+        return r.json() if r.status_code == 200 else None
     except:
         return None
 
@@ -220,17 +218,16 @@ def render_item_node(item):
                 "current_qty": new_qty
             }
         
-            result = update_item(item["id"], updated_item)
-        
-            if result:
+            response = update_item(item["id"], {
+                "current_qty": new_qty
+            })
+            
+            if response:
                 st.session_state[key_saved] = new_qty
                 st.session_state[key_status] = "Saved ✅"
-        
-                # ✅ USE BACKEND TIME
-                st.session_state[key_time] = result.get("last_updated", "Never")
-        
-            else:
-                st.session_state[key_status] = "Failed ❌"
+            
+                # ✅ USE BACKEND TIME (NOT local time)
+                st.session_state[key_time] = response.get("last_updated", "Never")
         # -------------------------
         # STATUS DISPLAY
         # -------------------------
