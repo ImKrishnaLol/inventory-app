@@ -114,7 +114,8 @@ def needs_restock(item):
 # ITEM NODE COMPONENT (Proper Fix)
 # =========================
 def render_item_node(item):
-    pass
+    with st.expander(f"📦 {item['name']}", expanded=False):
+        st.write(f"Quantity: {item.get('current_qty', 0)}")
 
 
 
@@ -202,12 +203,12 @@ if page == "🏠 Home":
                     if m.get("item_id"):
                         item = items_dict.get(m["item_id"])
                         if item:
-                            render_item_node_debug(item)
+                            render_item_node(item)
 
                     # Child group node
                     elif m.get("child_group_id"):
                         child_name = m.get("group_name", "Unnamed Group")
-                        render_tree_debug(
+                        render_tree(
                             m["child_group_id"],
                             child_name,
                             visited.copy()
@@ -215,7 +216,7 @@ if page == "🏠 Home":
 
         if groups:
             for g in groups:
-                render_tree_debug(g["id"], g["name"])
+                render_tree(g["id"], g["name"])
 
         st.divider()
 
@@ -237,7 +238,7 @@ if page == "🏠 Home":
             st.write("✅ Nothing else")
         else:
             for item in remaining:
-                render_item_node_debug(item)
+                render_item_node(item)
 
 # =========================
 # SYSTEM STATUS PAGE
