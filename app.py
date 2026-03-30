@@ -244,18 +244,33 @@ def render_item_node(item, path=""):
         # -------------------------
         # NUMBER INPUT
         # -------------------------
-        display_qty = st.number_input(
-            f"Quantity ({unit})",
-            min_value=0.0,
-            step=float(factor),
-            value=st.session_state[display_key],
-            key=display_key
-        )
-
+        factor = item.get("unit_factor", 1)
+        unit = item.get("unit", "")
+        
+        # Determine numeric type
+        is_float = not float(factor).is_integer()
+        
+        st.session_state.setdefault(display_key, st.session_state[key_qty] * factor)
+        
+        if is_float:
+            display_qty = st.number_input(
+                f"Quantity ({unit})",
+                min_value=0.0,
+                step=float(factor),
+                value=float(st.session_state[display_key]),
+                key=display_key
+            )
+        else:
+            display_qty = st.number_input(
+                f"Quantity ({unit})",
+                min_value=0,
+                step=int(factor),
+                value=int(st.session_state[display_key]),
+                key=display_key
+            )
+        
         # Sync UI → stored
-        new_qty = int(display_qty / factor)
-        st.session_state[key_qty] = new_qty
-
+        st.session_state[key_qty] = int(display_qty / factor)
         # -------------------------
         # QUICK BUTTONS
         # -------------------------
