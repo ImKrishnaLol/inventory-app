@@ -114,17 +114,7 @@ def needs_restock(item):
 # ITEM NODE COMPONENT (Proper Fix)
 # =========================
 def render_item_node(item):
-    key_qty = f"qty_{item['id']}"
-    key_status = f"status_{item['id']}"
-
-    # Initialize session_state
-    if key_qty not in st.session_state:
-        st.session_state[key_qty] = int(item.get("current_qty", 0))
-        st.session_state[key_status] = "Ready"
-
-    def update_backend_full(item):
-        pass
-
+    pass
 
 
 
