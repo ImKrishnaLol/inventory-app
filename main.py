@@ -253,15 +253,14 @@ def update_item(item_id: str, item: Item):
             item_id
         ))
 
-        row = cur.fetchone()
-
-        if not row:
+        if cur.rowcount == 0:
             raise HTTPException(status_code=404, detail="Item not found")
 
+        new_time = cur.fetchone()[0]
         conn.commit()
 
         return {
-            "last_updated": row[0].strftime("%d %b %Y, %H:%M:%S")
+            "last_updated": new_time.strftime("%d %b %Y, %H:%M:%S")
         }
 
     except Exception as e:
