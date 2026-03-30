@@ -125,7 +125,11 @@ def time_ago(timestamp_str):
 
     try:
         # Handle ISO format from backend (UTC)
-        past = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
+        past = datetime.fromisoformat(timestamp_str)
+
+        # If no timezone → assume UTC
+        if past.tzinfo is None:
+            past = past.replace(tzinfo=timezone.utc)
 
         # Convert to IST
         IST = timezone(timedelta(hours=5, minutes=30))
@@ -154,7 +158,10 @@ def estimate_quantity(current_qty, ideal_qty, consumption_rate, last_updated_str
         return current_qty
 
     try:
-        last_updated = datetime.fromisoformat(last_updated_str.replace("Z", "+00:00"))
+        last_updated = datetime.fromisoformat(last_updated_str)
+
+        if last_updated.tzinfo is None:
+            last_updated = last_updated.replace(tzinfo=timezone.utc)
 
         IST = timezone(timedelta(hours=5, minutes=30))
         last_updated = last_updated.astimezone(IST)
