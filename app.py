@@ -221,6 +221,17 @@ def render_item_node(item, path=""):
         st.text(f"Estimated current quantity: {estimated_qty}")
         st.caption(f"Ideal: {item['ideal_qty']} {item['unit']}")
 
+        # -------------------------
+        # APPLY BUTTON ACTIONS (BEFORE WIDGET)
+        # -------------------------
+        if st.session_state.get(f"set_full_{unique_id}", False):
+            st.session_state[key_qty] = int(item["ideal_qty"])
+            st.session_state[f"set_full_{unique_id}"] = False
+        
+        if st.session_state.get(f"set_empty_{unique_id}", False):
+            st.session_state[key_qty] = 0
+            st.session_state[f"set_empty_{unique_id}"] = False
+
         new_qty = st.number_input(
             "Quantity",
             min_value=0,
@@ -232,14 +243,12 @@ def render_item_node(item, path=""):
         # QUICK BUTTONS
         # -------------------------
         col1, col2 = st.columns(2)
-
+        
         if col1.button("🔼 Full", key=f"full_{unique_id}"):
-            st.session_state[key_qty] = int(item["ideal_qty"])
-            st.rerun()
-
+            st.session_state[f"set_full_{unique_id}"] = True
+        
         if col2.button("🔽 Empty", key=f"empty_{unique_id}"):
-            st.session_state[key_qty] = 0
-            st.rerun()
+            st.session_state[f"set_empty_{unique_id}"] = True
 
         # -------------------------
         # AUTOSAVE
