@@ -224,6 +224,26 @@ def render_item_node(item):
             step=1,
             key=key_qty
         )
+        st.caption(f"Ideal: {item['ideal_qty']} {item['unit']}")
+
+        new_qty = st.number_input(
+            "Quantity",
+            min_value=0,
+            step=1,
+            key=key_qty
+        )
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            if st.button("🔼 Full", key=f"full_{id_}"):
+                st.session_state[key_qty] = int(item["ideal_qty"])
+                st.rerun()
+        
+        with col2:
+            if st.button("🔽 Empty", key=f"empty_{id_}"):
+                st.session_state[key_qty] = 0
+                st.rerun()
 
         # -------------------------
         # AUTOSAVE LOGIC
