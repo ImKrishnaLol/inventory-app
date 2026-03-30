@@ -114,35 +114,57 @@ def needs_restock(item):
 # ITEM NODE COMPONENT (Proper Fix)
 # =========================
 def render_item_node(item):
-    key = f"qty_{item['id']}"
+    id_ = item["id"]
 
-    # Initialize state ONCE
-    if key not in st.session_state:
-        st.session_state[key] = int(item.get("current_qty", 0))
+    key_qty = f"qty_{id_}"
+    key_saved = f"saved_{id_}"
+    key_status = f"status_{id_}"
 
+    # -------------------------
+    # INITIALIZE STATE
+    # -------------------------
+    if key_qty not in st.session_state:
+        st.session_state[key_qty] = int(item.get("current_qty", 0))
+
+    if key_saved not in st.session_state:
+        st.session_state[key_saved] = int(item.get("current_qty", 0))
+
+    if key_status not in st.session_state:
+        st.session_state[key_status] = "Idle"
+
+    # -------------------------
+    # UI
+    # -------------------------
     with st.expander(f"📦 {item['name']}", expanded=False):
-        # Editable quantity
+
         new_qty = st.number_input(
             "Quantity",
             min_value=0,
             step=1,
-            key=key
+            key=key_qty
         )
 
-        # Save button (CRUCIAL)
-        if st.button("💾 Save", key=f"save_{item['id']}"):
+        # -------------------------
+        # AUTOSAVE LOGIC
+        # -------------------------
+        if new_qty != st.session_state[key_saved]:
+            st.session_state[key_status] = "Saving..."
+
             success = update_item(item["id"], {
                 **item,
                 "current_qty": new_qty
             })
 
             if success:
-                st.success("Saved")
+                st.session_state[key_saved] = new_qty
+                st.session_state[key_status] = "Saved ✅"
             else:
-                st.error("Failed to save")
+                st.session_state[key_status] = "Failed ❌"
 
-        # Show backend value (for clarity)
-        st.caption(f"Stored value: {item.get('current_qty', 0)}")
+        # -------------------------
+        # STATUS DISPLAY
+        # -------------------------
+        st.caption(f"Status: {st.session_state[key_status]}")
 
 
 
