@@ -118,10 +118,12 @@ def render_item_node(item):
 
     key_qty = f"qty_{id_}"
     key_saved = f"saved_{id_}"
+    key_pending = f"pending_{id_}"
+    key_last_change = f"last_change_{id_}"
     key_status = f"status_{id_}"
 
     # -------------------------
-    # INITIALIZE STATE
+    # INIT STATE
     # -------------------------
     if key_qty not in st.session_state:
         st.session_state[key_qty] = int(item.get("current_qty", 0))
@@ -129,8 +131,40 @@ def render_item_node(item):
     if key_saved not in st.session_state:
         st.session_state[key_saved] = int(item.get("current_qty", 0))
 
+    if key_pending not in st.session_state:
+        st.session_state[key_pending] = None
+
+    if key_last_change not in st.session_state:
+        st.session_state[key_last_change] = 0
+
     if key_status not in st.session_state:
         st.session_state[key_status] = "Idle"
+
+    # -------------------------
+    # BACKGROUND SAVE FUNCTION
+    # -------------------------
+    def background_save():
+        time.sleep(0.5)  # ⏳ debounce time (user stops typing)
+
+        # Only save if still pending
+        if st.session_state[key_pending] is None:
+            return
+
+        value_to_save = st.session_state[key_pending]
+
+        st.session_state[key_status] = "Saving..."
+
+        success = update_item(item["id"], {
+            **item,
+            "current_qty": value_to_save
+        })
+
+        if success:
+            st.session_state[key_saved] = value_to_save
+            st.session_state[key_pending] = None
+            st.session_state[key_status] = "Saved ✅"
+        else:
+            st.session_state[key_status] = "Failed ❌"
 
     # -------------------------
     # UI
@@ -145,24 +179,18 @@ def render_item_node(item):
         )
 
         # -------------------------
-        # AUTOSAVE LOGIC
+        # DETECT CHANGE
         # -------------------------
         if new_qty != st.session_state[key_saved]:
-            st.session_state[key_status] = "Saving..."
+            st.session_state[key_pending] = new_qty
+            st.session_state[key_last_change] = time.time()
+            st.session_state[key_status] = "Editing..."
 
-            success = update_item(item["id"], {
-                **item,
-                "current_qty": new_qty
-            })
-
-            if success:
-                st.session_state[key_saved] = new_qty
-                st.session_state[key_status] = "Saved ✅"
-            else:
-                st.session_state[key_status] = "Failed ❌"
+            # Start background save thread
+            threading.Thread(target=background_save, daemon=True).start()
 
         # -------------------------
-        # STATUS DISPLAY
+        # STATUS
         # -------------------------
         st.caption(f"Status: {st.session_state[key_status]}")
 
