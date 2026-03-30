@@ -109,6 +109,28 @@ def delete_member(member_id):
 def needs_restock(item):
     return True
 
+def time_ago(timestamp_str):
+    if timestamp_str == "Never":
+        return "Never"
+
+    try:
+        past = datetime.strptime(timestamp_str, "%d %b %Y, %H:%M:%S")
+        now = datetime.now()
+        diff = (now - past).total_seconds()
+
+        if diff < 5:
+            return "Just now"
+        elif diff < 60:
+            return f"{int(diff)} sec ago"
+        elif diff < 3600:
+            return f"{int(diff // 60)} min ago"
+        elif diff < 86400:
+            return f"{int(diff // 3600)} hr ago"
+        else:
+            return f"{int(diff // 86400)} day(s) ago"
+    except:
+        return timestamp_str
+
 
 # =========================
 # ITEM NODE COMPONENT (Proper Fix)
@@ -173,7 +195,10 @@ def render_item_node(item):
         # STATUS DISPLAY
         # -------------------------
         st.caption(f"Status: {st.session_state[key_status]}")
-        st.caption(f"Last updated: {st.session_state[key_time]}")
+        st.caption(
+            f"Last updated: {time_ago(st.session_state[key_time])} "
+            f"({st.session_state[key_time]})"
+        )
 
 
 def render_tree(group_id, group_name, items_dict, visited=None):
