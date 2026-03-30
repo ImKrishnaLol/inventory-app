@@ -164,10 +164,10 @@ page = st.sidebar.radio(
 )
 
 # =========================
-# HOME PAGE (Debuggable, No Rerun)
+# HOME PAGE (Clean Version)
 # =========================
 if page == "🏠 Home":
-    st.title("🛒 Shopping Overview (Debug Mode)")
+    st.title("🛒 Shopping Overview")
 
     items = fetch_items()
     groups = fetch_groups()
@@ -180,43 +180,11 @@ if page == "🏠 Home":
         seen_items = set()
 
         # -------------------------
-        # RECURSIVE TREE RENDERING
+        # RENDER GROUP TREE
         # -------------------------
-        def render_tree_debug(group_id, group_name, visited=None):
-            if visited is None:
-                visited = set()
-
-            if group_id in visited:
-                st.warning("Cycle detected in groups")
-                return
-
-            visited.add(group_id)
-            members = fetch_group_members(group_id)
-
-            with st.expander(f"📁 {group_name}", expanded=False):
-                if not members:
-                    st.write("• (empty)")
-                    return
-
-                for m in members:
-                    # Item node
-                    if m.get("item_id"):
-                        item = items_dict.get(m["item_id"])
-                        if item:
-                            render_item_node(item)
-
-                    # Child group node
-                    elif m.get("child_group_id"):
-                        child_name = m.get("group_name", "Unnamed Group")
-                        render_tree(
-                            m["child_group_id"],
-                            child_name,
-                            visited.copy()
-                        )
-
         if groups:
             for g in groups:
-                render_tree(g["id"], g["name"])
+                render_tree(g["id"], g["name"], items_dict)
 
         st.divider()
 
@@ -225,13 +193,14 @@ if page == "🏠 Home":
         # =========================
         st.subheader("📦 Other Items")
 
-        # Mark items that are already in groups
+        # Collect items already inside groups
         for g in groups:
             members = fetch_group_members(g["id"])
             for m in members:
                 if m.get("item_id"):
                     seen_items.add(m["item_id"])
 
+        # Remaining items
         remaining = [item for item in items if item["id"] not in seen_items]
 
         if not remaining:
