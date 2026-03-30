@@ -154,15 +154,21 @@ def time_ago(timestamp_str):
         return f"Error: {e}"
 
 def estimate_quantity(current_qty, ideal_qty, consumption_rate, last_updated_str):
+    """
+    Works directly on stored values (no unit conversion).
+    """
+
     if not last_updated_str or last_updated_str == "Never":
         return current_qty
 
     try:
+        IST = timezone(timedelta(hours=5, minutes=30))
+
         last_updated = datetime.fromisoformat(last_updated_str)
         if last_updated.tzinfo is None:
             last_updated = last_updated.replace(tzinfo=timezone.utc)
-        last_updated = last_updated.astimezone(IST)
 
+        last_updated = last_updated.astimezone(IST)
         now = datetime.now(IST)
 
         seconds_passed = (now - last_updated).total_seconds()
@@ -171,6 +177,7 @@ def estimate_quantity(current_qty, ideal_qty, consumption_rate, last_updated_str
         if consumption_rate <= 0:
             return current_qty
 
+        # consumption_rate = days to consume ideal stock
         daily_usage = ideal_qty / consumption_rate
         used = daily_usage * days_passed
 
@@ -218,8 +225,14 @@ def render_item_node(item, path=""):
     # -------------------------
     with st.expander(f"📦 {item['name']}", expanded=False):
 
-        st.text(f"Estimated current quantity: {estimated_qty}")
-        st.caption(f"Ideal: {item['ideal_qty']} {item['unit']}")
+        factor = item.get("unit_factor", 1)
+        unit = item.get("unit", "")
+        
+        display_estimated = round(estimated_qty * factor, 2)
+        display_ideal = round(item["ideal_qty"] * factor, 2)
+        
+        st.text(f"Estimated: {display_estimated} {unit}")
+        st.caption(f"Ideal: {display_ideal} {unit}")
 
         # -------------------------
         # APPLY BUTTON ACTIONS (BEFORE WIDGET)
@@ -232,13 +245,18 @@ def render_item_node(item, path=""):
             st.session_state[key_qty] = 0
             st.session_state[f"set_empty_{unique_id}"] = False
 
-        st.number_input(
-            "Quantity",
-            min_value=0,
-            step=1,
-            key=key_qty
-        )
+        factor = item.get("unit_factor", 1)
 
+        display_qty = st.number_input(
+            f"Quantity ({item['unit']})",
+            min_value=0.0,
+            step=float(factor),
+            value=st.session_state[key_qty] * factor
+        )
+        
+        # Convert back to stored value
+        new_qty = int(display_qty / factor)
+        st.session_state[key_qty] = new_qty
         # -------------------------
         # QUICK BUTTONS
         # -------------------------
