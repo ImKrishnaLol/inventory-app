@@ -214,7 +214,16 @@ def render_item_node(item):
             st.session_state[key_status] = "Saving..."
         
             response = update_item(item["id"], {
-                "current_qty": new_qty
+                "id": item["id"],
+                "name": item["name"],
+                "shop_category": item["shop_category"],
+                "unit": item["unit"],
+                "unit_factor": item["unit_factor"],
+                "irreplacable": item["irreplacable"],
+                "current_qty": new_qty,
+                "ideal_qty": item["ideal_qty"],
+                "low_stock_ratio": item["low_stock_ratio"],
+                "consumption_rate": item["consumption_rate"]
             })
         
             if response:
